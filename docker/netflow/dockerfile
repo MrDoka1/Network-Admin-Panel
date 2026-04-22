@@ -1,0 +1,3 @@
+FROM telegraf:latest
+
+COPY docker/netflow/telegraf.conf /etc/telegraf/telegraf.conf
