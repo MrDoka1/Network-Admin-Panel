@@ -10,6 +10,9 @@ public record DeviceInterfaceResponse(
         UUID id,
         UUID deviceId,
         String name,
-        DeviceInterfaceAdminStatus adminStatus
+        DeviceInterfaceAdminStatus adminStatus,
+        UUID parentInterfaceId,
+        Short dot1qVlanId,
+        String ipAddress
 ) {
 }

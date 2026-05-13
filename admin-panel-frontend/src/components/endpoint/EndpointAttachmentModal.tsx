@@ -107,6 +107,7 @@ export function EndpointAttachmentModal({
 
   const networkOptions = useMemo(() => {
     return networkInterfaces
+      .filter((i) => !i.parentInterfaceId)
       .filter((i) => !usedInLinks.has(i.id))
       .filter(
         (i) =>

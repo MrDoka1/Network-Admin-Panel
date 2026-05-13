@@ -131,11 +131,19 @@ export function LinkModal({
   const [error, setError] = useState<string | null>(null)
 
   const freeA = useMemo(
-    () => interfacesA.filter((i) => !busyInterfaceIds.has(i.id)).sort(sortByName),
+    () =>
+      interfacesA
+        .filter((i) => !i.parentInterfaceId)
+        .filter((i) => !busyInterfaceIds.has(i.id))
+        .sort(sortByName),
     [interfacesA, busyInterfaceIds],
   )
   const freeB = useMemo(
-    () => interfacesB.filter((i) => !busyInterfaceIds.has(i.id)).sort(sortByName),
+    () =>
+      interfacesB
+        .filter((i) => !i.parentInterfaceId)
+        .filter((i) => !busyInterfaceIds.has(i.id))
+        .sort(sortByName),
     [interfacesB, busyInterfaceIds],
   )
 

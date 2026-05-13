@@ -17,6 +17,8 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import ru.krizhanovskiy.admin.panel.backend.domain.enums.DeviceInterfaceAdminStatus;
 
 import java.util.UUID;
@@ -47,6 +49,18 @@ public class DeviceInterface {
     @Enumerated(EnumType.STRING)
     @Column(name = "admin_status", nullable = false, length = 16)
     private DeviceInterfaceAdminStatus adminStatus;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_interface_id")
+    private DeviceInterface parentInterface;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "dot1q_vlan_id")
+    private Vlan dot1qVlan;
+
+    @JdbcTypeCode(SqlTypes.INET)
+    @Column(name = "ip_address")
+    private String ipAddress;
 
     @OneToOne(mappedBy = "deviceInterface", fetch = FetchType.LAZY)
     private InterfaceVlan interfaceVlan;

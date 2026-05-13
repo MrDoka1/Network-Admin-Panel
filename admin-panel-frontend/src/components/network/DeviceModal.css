@@ -30,7 +30,7 @@
 }
 
 .device-modal--wide {
-  max-width: 560px;
+  max-width: min(96vw, 880px);
 }
 
 .device-modal__header {
@@ -168,6 +168,14 @@
   color: var(--text-h);
 }
 
+.device-modal__vlan-inline {
+  margin-bottom: 4px;
+}
+
+.device-modal__vlan-inline .device-modal__error {
+  margin-top: 8px;
+}
+
 .device-modal__ports-status,
 .device-modal__ports-empty {
   margin: 0 0 10px;
@@ -284,6 +292,111 @@
   gap: 8px;
 }
 
+.device-modal__ports-kind-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+}
+
+.device-modal__ports-new-line {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  box-sizing: border-box;
+}
+
+.device-modal__ports-new-line .device-modal__new-select,
+.device-modal__ports-new-line .device-modal__new-name,
+.device-modal__ports-new-line .device-modal__new-ipv4,
+.device-modal__ports-new-line .device-modal__new-mask,
+.device-modal__ports-new-line .device-modal__new-admin {
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  box-sizing: border-box;
+}
+
+.device-modal__ports-new-line .device-modal__new-select:focus,
+.device-modal__ports-new-line .device-modal__new-name:focus,
+.device-modal__ports-new-line .device-modal__new-ipv4:focus,
+.device-modal__ports-new-line .device-modal__new-mask:focus,
+.device-modal__ports-new-line .device-modal__new-admin:focus {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 1px;
+}
+
+.device-modal__new-select {
+  flex: 0 0 auto;
+  min-width: 7rem;
+  max-width: 11rem;
+}
+
+.device-modal__new-name {
+  flex: 1 1 100px;
+  min-width: 6.5rem;
+}
+
+.device-modal__l3-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+}
+
+.device-modal__l3-inline--new {
+  flex: 0 0 auto;
+}
+
+.device-modal__l3-slash {
+  flex-shrink: 0;
+  font-size: 14px;
+  color: var(--text);
+  user-select: none;
+  padding: 0 2px;
+}
+
+.device-modal__new-ipv4 {
+  width: 8.75rem;
+  min-width: 7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.device-modal__new-mask {
+  width: 3.25rem;
+  min-width: 3rem;
+  text-align: center;
+}
+
+.device-modal__new-admin {
+  flex: 0 0 auto;
+}
+
+.device-modal__new-add {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.device-modal__ports-input--ip {
+  max-width: 9rem;
+  min-width: 6.5rem;
+}
+
+.device-modal__ports-input--mask {
+  max-width: 4rem;
+  min-width: 3rem;
+  text-align: center;
+}
+
 .device-modal__ports-add-label {
   font-size: 13px;
   color: var(--text);
@@ -322,6 +435,50 @@
   border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text-h);
+}
+
+.device-modal__ports-add-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.device-modal__ports-radio-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.device-modal__ports-add-inline-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.device-modal__ports-add-inline-label select {
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  max-width: 100%;
+}
+
+.device-modal__ports-subif {
+  padding-left: 6px;
+}
+
+.device-modal__ports-muted {
+  color: var(--text);
+  opacity: 0.85;
+  font-size: 13px;
 }
 
 .link-modal__intro {

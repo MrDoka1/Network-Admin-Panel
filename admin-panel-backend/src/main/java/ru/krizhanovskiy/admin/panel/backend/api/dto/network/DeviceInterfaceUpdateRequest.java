@@ -9,6 +9,11 @@ import ru.krizhanovskiy.admin.panel.backend.domain.enums.DeviceInterfaceAdminSta
 @Schema(name = "DeviceInterfaceUpdateRequest")
 public record DeviceInterfaceUpdateRequest(
         @NotBlank @Size(max = 128) String name,
-        @NotNull DeviceInterfaceAdminStatus adminStatus
+        @NotNull DeviceInterfaceAdminStatus adminStatus,
+        @Schema(description = "VID 802.1Q; только для сабинтерфейса, иначе должен быть null")
+        Short dot1qVlanId,
+        @Schema(description = "Адрес L3 (inet) или null")
+        @Size(max = 128)
+        String ipAddress
 ) {
 }

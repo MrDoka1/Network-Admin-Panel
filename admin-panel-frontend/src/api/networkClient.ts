@@ -18,6 +18,8 @@ import type {
   NetworkDevice,
   NetworkDeviceCreatePayload,
   NetworkDeviceUpdatePayload,
+  Vlan,
+  VlanCreatePayload,
 } from '../types/network'
 
 import { apiFetch } from './http'
@@ -64,6 +66,30 @@ export async function updateDevice(
   return parseJson<NetworkDevice>(res)
 }
 
+export async function fetchVlans(): Promise<Vlan[]> {
+  const res = await apiFetch(`/api/v1/network/vlans`)
+  return parseJson<Vlan[]>(res)
+}
+
+export async function createVlan(payload: VlanCreatePayload): Promise<Vlan> {
+  const body: Record<string, unknown> = { vlanId: payload.vlanId }
+  if (payload.name !== undefined && payload.name.trim() !== '') {
+    body.name = payload.name.trim()
+  }
+  if (payload.adminStatus !== undefined) {
+    body.adminStatus = payload.adminStatus
+  }
+  if (payload.operStatus !== undefined && payload.operStatus !== null) {
+    body.operStatus = payload.operStatus
+  }
+  const res = await apiFetch(`/api/v1/network/vlans`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return parseJson<Vlan>(res)
+}
+
 export async function fetchInterfacesForDevice(
   deviceId: string,
 ): Promise<DeviceInterface[]> {
@@ -77,12 +103,25 @@ export async function createDeviceInterface(
   deviceId: string,
   payload: DeviceInterfaceCreatePayload,
 ): Promise<DeviceInterface> {
+  const body: Record<string, unknown> = {
+    name: payload.name,
+    adminStatus: payload.adminStatus,
+  }
+  if (payload.parentInterfaceId != null && payload.parentInterfaceId !== '') {
+    body.parentInterfaceId = payload.parentInterfaceId
+  }
+  if (payload.dot1qVlanId != null) {
+    body.dot1qVlanId = payload.dot1qVlanId
+  }
+  if (payload.ipAddress != null && payload.ipAddress !== '') {
+    body.ipAddress = payload.ipAddress
+  }
   const res = await apiFetch(
     `/api/v1/network/devices/${deviceId}/interfaces`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     },
   )
   return parseJson<DeviceInterface>(res)
@@ -95,7 +134,12 @@ export async function updateDeviceInterface(
   const res = await apiFetch(`/api/v1/network/interfaces/${interfaceId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      name: payload.name,
+      adminStatus: payload.adminStatus,
+      dot1qVlanId: payload.dot1qVlanId ?? null,
+      ipAddress: payload.ipAddress ?? null,
+    }),
   })
   return parseJson<DeviceInterface>(res)
 }

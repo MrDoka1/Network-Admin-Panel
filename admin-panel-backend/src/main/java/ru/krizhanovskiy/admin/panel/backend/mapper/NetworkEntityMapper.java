@@ -30,6 +30,8 @@ public interface NetworkEntityMapper {
     VlanResponse toVlanResponse(Vlan entity);
 
     @Mapping(target = "deviceId", source = "device.id")
+    @Mapping(target = "parentInterfaceId", source = "parentInterface.id")
+    @Mapping(target = "dot1qVlanId", source = "dot1qVlan.vlanId")
     DeviceInterfaceResponse toDeviceInterfaceResponse(DeviceInterface entity);
 
     @Mapping(target = "interfaceAId", source = "interfaceA.id")

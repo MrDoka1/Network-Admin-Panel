@@ -3,7 +3,7 @@
 --changeset admin-panel:018-device-interface-subinterface-l3-address-columns splitStatements:false
 ALTER TABLE device_interface
     ADD COLUMN parent_interface_id uuid REFERENCES device_interface (id) ON DELETE CASCADE,
-    ADD COLUMN dot1q_vlan_id smallint REFERENCES vlan (vlan_id) ON DELETE RESTRICT;
+    ADD COLUMN dot1q_vlan_id smallint REFERENCES vlan (vlan_id) ON DELETE RESTRICT,
     ADD COLUMN ip_address inet NULL;
 
 CREATE INDEX idx_device_interface_parent_id ON device_interface (parent_interface_id);

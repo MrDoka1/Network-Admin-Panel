@@ -33,6 +33,7 @@ import type {
 } from '../../types/endpoint'
 import type { DeviceInterface, Link, NetworkDevice } from '../../types/network'
 import { DeviceModal } from './DeviceModal'
+import { VlanModal } from './VlanModal'
 import {
   DeviceNode,
   type DeviceFlowNode,
@@ -323,7 +324,7 @@ function buildGraph(
   const infraNodes: DeviceFlowNode[] = devices.map((d) => {
     const pos = devicePos.get(d.id)!
     const devIfaces = interfaces
-      .filter((x) => x.deviceId === d.id)
+      .filter((x) => x.deviceId === d.id && !x.parentInterfaceId)
       .sort((a, b) =>
         a.name.localeCompare(b.name, undefined, { numeric: true }),
       )
@@ -534,6 +535,7 @@ export const NetworkGraphView = memo(function NetworkGraphView() {
   const [selection, setSelection] = useState<Selection>(null)
   const [deviceModal, setDeviceModal] = useState<DeviceModalState>(null)
   const [linkModal, setLinkModal] = useState<LinkModalState>(null)
+  const [vlanModalOpen, setVlanModalOpen] = useState(false)
 
   const load = useCallback(async (select?: AfterLoadSelection) => {
     setLoading(true)
@@ -857,6 +859,13 @@ export const NetworkGraphView = memo(function NetworkGraphView() {
           <button
             type="button"
             className="network-graph__btn"
+            onClick={() => setVlanModalOpen(true)}
+          >
+            Добавить VLAN
+          </button>
+          <button
+            type="button"
+            className="network-graph__btn"
             onClick={() => void load()}
             disabled={loading}
           >
@@ -1022,6 +1031,12 @@ export const NetworkGraphView = memo(function NetworkGraphView() {
             setDeviceModal(null)
             void load({ kind: 'device', id: saved.id })
           }}
+        />
+      ) : null}
+      {vlanModalOpen ? (
+        <VlanModal
+          open
+          onClose={() => setVlanModalOpen(false)}
         />
       ) : null}
       {linkModal ? (

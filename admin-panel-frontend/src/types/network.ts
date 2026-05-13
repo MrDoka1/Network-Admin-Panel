@@ -24,23 +24,52 @@ export type NetworkDeviceUpdatePayload = {
   status: NetworkDeviceStatus
 }
 
+export type VlanAdminStatus = 'ACTIVE' | 'SUSPENDED'
+export type VlanOperStatus = 'UP' | 'DOWN' | 'UNKNOWN'
+
+export type Vlan = {
+  vlanId: number
+  name: string
+  adminStatus: string
+  operStatus: string | null
+}
+
+/** POST /api/v1/network/vlans — adminStatus по умолчанию ACTIVE, operStatus можно не задавать */
+export type VlanCreatePayload = {
+  vlanId: number
+  name?: string
+  adminStatus?: VlanAdminStatus
+  operStatus?: VlanOperStatus | null
+}
+
 export type DeviceInterface = {
   id: string
   deviceId: string
   name: string
   adminStatus: 'UP' | 'DOWN'
+  parentInterfaceId: string | null
+  dot1qVlanId: number | null
+  ipAddress: string | null
 }
 
 /** POST /api/v1/network/devices/{deviceId}/interfaces */
 export type DeviceInterfaceCreatePayload = {
   name: string
   adminStatus: 'UP' | 'DOWN'
+  /** null / не передавать — физический порт; иначе UUID родительского порта на этом же устройстве */
+  parentInterfaceId?: string | null
+  /** Обязателен вместе с parentInterfaceId */
+  dot1qVlanId?: number | null
+  ipAddress?: string | null
 }
 
 /** PUT /api/v1/network/interfaces/{id} */
 export type DeviceInterfaceUpdatePayload = {
   name: string
   adminStatus: 'UP' | 'DOWN'
+  /** null для физического порта */
+  dot1qVlanId?: number | null
+  ipAddress?: string | null
 }
 
 export type Link = {
