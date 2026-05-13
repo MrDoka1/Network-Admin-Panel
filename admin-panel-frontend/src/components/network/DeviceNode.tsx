@@ -111,8 +111,17 @@ export const DeviceNode = memo(function DeviceNode({
     rightPorts.length,
   ])
 
+  const typeClass =
+    data.deviceType === 'ROUTER'
+      ? 'device-node--router'
+      : data.deviceType === 'SWITCH'
+        ? 'device-node--switch'
+        : ''
+
   return (
-    <div className={`device-node${selected ? ' device-node--selected' : ''}`}>
+    <div
+      className={`device-node ${typeClass}${selected ? ' device-node--selected' : ''}`.trim()}
+    >
       {topPorts.length > 0 ? (
         <div className="device-node__strip device-node__strip--top">
           {topPorts.map((p, i) => {

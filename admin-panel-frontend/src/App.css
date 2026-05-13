@@ -1,1 +1,49 @@
-/* Стили страницы сети — в основном в NetworkGraphView.css */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+}
+
+.app-shell__nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  flex-shrink: 0;
+}
+
+.app-shell__nav-spacer {
+  flex: 1;
+  min-width: 8px;
+}
+
+
+.app-shell__tab {
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.app-shell__tab:hover {
+  background: var(--code-bg);
+  color: var(--text-h);
+}
+
+.app-shell__tab--active {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+.app-shell__main {
+  flex: 1;
+  min-height: 0;
+}

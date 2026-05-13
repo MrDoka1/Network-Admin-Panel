@@ -2,3 +2,12 @@ databaseChangeLog:
   - include:
       file: changes/001-initial-network-schema.sql
       relativeToChangelogFile: true
+  - include:
+      file: changes/002-endpoint-devices.sql
+      relativeToChangelogFile: true
+  - include:
+      file: changes/003-auth-spring-session.sql
+      relativeToChangelogFile: true
+  - include:
+      file: changes/004-device-interface-subinterfaces-l3-address.sql
+      relativeToChangelogFile: true

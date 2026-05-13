@@ -1,4 +1,29 @@
 services:
+  backend:
+    build:
+      context: ./admin-panel-backend
+      dockerfile: Dockerfile
+    container_name: admin-panel-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/admin_panel
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./admin-panel-frontend
+      dockerfile: Dockerfile
+    container_name: admin-panel-frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
   postgres:
     image: postgres:16-alpine
     container_name: admin-panel-postgres
@@ -28,7 +53,9 @@ services:
       - victoriametrics_data:/victoria-metrics-data
 
   telegraf:
-    image: telegraf:latest
+    build:
+      context: .
+      dockerfile: docker/netflow/Dockerfile
     container_name: admin-panel-telegraf-netflow
     depends_on:
       - victoriametrics
