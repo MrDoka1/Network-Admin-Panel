@@ -1,11 +1,3 @@
-# Запуск на сервере: только pull готовых образов (без сборки из исходников).
-# На сервер положите этот файл и каталог docker/netflow/ (нужен telegraf.conf).
-# Запуск: docker compose -f docker-compose.server.yaml pull && docker compose -f docker-compose.server.yaml up -d
-#
-# CORS: рядом можно положить файл .env с одной строкой (как вы открываете UI в браузере — схема, хост, порт):
-#   CORS_ALLOWED_ORIGINS=http://192.168.1.10:3000,https://panel.example.com
-# Если .env нет, подставятся только localhost (удобно для проверки на самой машине).
-
 services:
   backend:
     image: mrdoka/network-admin-panel-backend:latest
@@ -14,10 +6,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      kafka:
+        condition: service_started
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/admin_panel
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TASKS_TOPIC: ${KAFKA_TASKS_TOPIC:-reconfiguration.tasks}
+      APP_INSTANCE_ID: ${APP_INSTANCE_ID:-admin-panel}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173}
     ports:
       - "8080:8080"
@@ -71,7 +68,7 @@ services:
       - "2055:2055/udp"
     volumes:
       - ./docker/netflow/telegraf.conf:/etc/telegraf/telegraf.conf:ro
-  
+
   kafka:
     image: confluentinc/cp-kafka:7.6.0
     container_name: admin-panel-kafka
@@ -80,45 +77,79 @@ services:
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_NODE_ID: 1
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
     ports:
       - "9092:9092"
-  
+
   decision-engine:
-  image: tem4ik4545/decision-engine:latest
-  container_name: admin-panel-decision-engine
-  restart: unless-stopped
-  depends_on:
-    - kafka
-    - postgres
-    - victoriametrics
-  environment:
-    KAFKA_BOOTSTRAP: kafka:9092
-    KAFKA_TASKS_TOPIC: reconfig.tasks
-    KAFKA_RESULTS_TOPIC: results.reconfig
-    POSTGRES_DSN: postgresql+asyncpg://postgres:postgres@postgres/admin_panel
-    VICTORIAMETRICS_URL: http://victoriametrics:8428
+    image: tem4ik4545/decision-engine:latest
+    container_name: admin-panel-decision-engine
+    restart: unless-stopped
+    depends_on:
+      - kafka
+      - postgres
+      - victoriametrics
+    environment:
+      KAFKA_BOOTSTRAP: kafka:9092
+      KAFKA_TASKS_TOPIC: reconfig.tasks
+      KAFKA_RESULTS_TOPIC: results.reconfig
+      POSTGRES_DSN: postgresql+asyncpg://postgres:postgres@postgres/admin_panel
+      VICTORIAMETRICS_URL: http://victoriametrics:8428
 
-    METRICS_POLL_INTERVAL_SEC: "60"
-    VLAN_RESOLUTION_METHOD: auto
-    NETFLOW_SRC_ENCODING: int
+      METRICS_POLL_INTERVAL_SEC: "60"
+      VLAN_RESOLUTION_METHOD: auto
+      NETFLOW_SRC_ENCODING: int
 
-    ANOMALY_THRESHOLD: "3.0"
-    BANDWIDTH_THRESHOLD: "0.85"
-    QUARANTINE_VLAN: "999"
+      ANOMALY_THRESHOLD: "3.0"
+      BANDWIDTH_THRESHOLD: "0.85"
+      QUARANTINE_VLAN: "999"
 
-    LINK_CAPACITY_MBPS: "1000"
-    ICMP_THRESHOLD: "1000.0"
-    NEW_SOURCES_THRESHOLD: "10"
-    INTER_VLAN_RATIO_THRESHOLD: "0.4"
-    MAX_FLOW_BYTES_THRESHOLD: "100000000"
+      LINK_CAPACITY_MBPS: "1000"
+      ICMP_THRESHOLD: "1000.0"
+      NEW_SOURCES_THRESHOLD: "10"
+      INTER_VLAN_RATIO_THRESHOLD: "0.4"
+      MAX_FLOW_BYTES_THRESHOLD: "100000000"
 
-    SEGMENTER_TYPE: greedy
-    LOG_LEVEL: INFO
+      SEGMENTER_TYPE: greedy
+      LOG_LEVEL: INFO
+
+  netflow-collector:
+    image: scotix/avlan-netflow-collector:latest
+    container_name: avlan-netflow-collector
+    depends_on:
+      - victoriametrics
+    environment:
+      VM_URL: http://victoriametrics:8428
+      NETFLOW_LISTEN_HOST: 0.0.0.0
+      NETFLOW_LISTEN_PORT: "2055"
+      TEMPLATE_TTL_SEC: "3600"
+      LOG_LEVEL: INFO
+    ports:
+      - "2055:2055/udp"
+    restart: unless-stopped
+
+  metrics-api:
+    image: scotix/avlan-metrics-api:latest
+    container_name: avlan-metrics-api
+    depends_on:
+      - victoriametrics
+    environment:
+      VM_URL: http://victoriametrics:8428
+      AGG_PERIOD_SEC: "60"
+      DEFAULT_LINK_CAPACITY_BPS: "100000000"
+      API_AUTH_ENABLED: "true"
+      API_USER: ${API_USER:-metrics}
+      API_PASSWORD: ${API_PASSWORD:-change-me-api}
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
 
 volumes:
   postgres_data:
