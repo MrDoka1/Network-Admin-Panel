@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,6 +24,7 @@ import ru.krizhanovskiy.admin.panel.backend.service.ReconfigurationTaskService;
 import java.net.URI;
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/reconfiguration/tasks")
@@ -53,5 +55,19 @@ public class ReconfigurationTaskController {
                 .buildAndExpand(created.id())
                 .toUri();
         return ResponseEntity.created(location).body(created);
+    }
+
+    @PostMapping("/{id}/cancel")
+    @Operation(summary = "Отменить задачу",
+            description = "Доступно для задач в статусе «Ожидает» или «Ожидает подтверждения».")
+    public ReconfigurationTaskResponse cancel(@PathVariable UUID id) {
+        return reconfigurationTaskService.cancel(id);
+    }
+
+    @PostMapping("/{id}/confirm")
+    @Operation(summary = "Подтвердить задачу",
+            description = "Доступно для задач в статусе «Ожидает подтверждения».")
+    public ReconfigurationTaskResponse confirm(@PathVariable UUID id) {
+        return reconfigurationTaskService.confirm(id);
     }
 }

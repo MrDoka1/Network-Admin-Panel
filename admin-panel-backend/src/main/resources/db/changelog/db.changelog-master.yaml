@@ -11,3 +11,12 @@ databaseChangeLog:
   - include:
       file: changes/004-device-interface-subinterfaces-l3-address.sql
       relativeToChangelogFile: true
+  - include:
+      file: changes/005-reconfig-tasks-status.sql
+      relativeToChangelogFile: true
+  - include:
+      file: changes/006-device-vlan.sql
+      relativeToChangelogFile: true
+  - include:
+      file: changes/007-reconfig-task-status-confirm.sql
+      relativeToChangelogFile: true

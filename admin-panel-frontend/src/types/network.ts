@@ -42,6 +42,25 @@ export type VlanCreatePayload = {
   operStatus?: VlanOperStatus | null
 }
 
+/** GET /api/v1/network/device-vlans — VLAN, настроенные на устройстве */
+export type DeviceVlan = {
+  deviceId: string
+  vlanId: number
+  name: string | null
+  adminStatus: VlanAdminStatus
+  operStatus: VlanOperStatus | null
+}
+
+export type InterfaceVlanMode = 'ACCESS' | 'TRUNK'
+
+/** Данные из `interface_vlan` + `trunk_allowed_vlan` (см. GET …/devices/{id}/interfaces). */
+export type DeviceInterfaceVlanBinding = {
+  mode: InterfaceVlanMode
+  accessVlanId: number | null
+  nativeVlanId: number | null
+  trunkAllowedVlanIds?: number[] | null
+}
+
 export type DeviceInterface = {
   id: string
   deviceId: string
@@ -50,6 +69,7 @@ export type DeviceInterface = {
   parentInterfaceId: string | null
   dot1qVlanId: number | null
   ipAddress: string | null
+  vlanBinding?: DeviceInterfaceVlanBinding | null
 }
 
 /** POST /api/v1/network/devices/{deviceId}/interfaces */
@@ -70,6 +90,18 @@ export type DeviceInterfaceUpdatePayload = {
   /** null для физического порта */
   dot1qVlanId?: number | null
   ipAddress?: string | null
+}
+
+/** PUT /api/v1/network/interfaces/{interfaceId}/vlan */
+export type InterfaceVlanUpsertPayload = {
+  mode: InterfaceVlanMode
+  accessVlanId?: number | null
+  nativeVlanId?: number | null
+}
+
+export type TrunkAllowedVlanEntry = {
+  interfaceId: string
+  vlanId: number
 }
 
 export type Link = {

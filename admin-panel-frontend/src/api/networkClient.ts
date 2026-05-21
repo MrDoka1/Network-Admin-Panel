@@ -13,11 +13,14 @@ import type {
   DeviceInterface,
   DeviceInterfaceCreatePayload,
   DeviceInterfaceUpdatePayload,
+  DeviceVlan,
+  InterfaceVlanUpsertPayload,
   Link,
   LinkCreatePayload,
   NetworkDevice,
   NetworkDeviceCreatePayload,
   NetworkDeviceUpdatePayload,
+  TrunkAllowedVlanEntry,
   Vlan,
   VlanCreatePayload,
 } from '../types/network'
@@ -69,6 +72,36 @@ export async function updateDevice(
 export async function fetchVlans(): Promise<Vlan[]> {
   const res = await apiFetch(`/api/v1/network/vlans`)
   return parseJson<Vlan[]>(res)
+}
+
+export async function fetchDeviceVlans(): Promise<DeviceVlan[]> {
+  const res = await apiFetch(`/api/v1/network/device-vlans`)
+  return parseJson<DeviceVlan[]>(res)
+}
+
+export async function createDeviceVlan(
+  deviceId: string,
+  vlanId: number,
+): Promise<DeviceVlan> {
+  const res = await apiFetch(
+    `/api/v1/network/devices/${deviceId}/vlans/${vlanId}`,
+    { method: 'POST' },
+  )
+  return parseJson<DeviceVlan>(res)
+}
+
+export async function deleteDeviceVlan(
+  deviceId: string,
+  vlanId: number,
+): Promise<void> {
+  const res = await apiFetch(
+    `/api/v1/network/devices/${deviceId}/vlans/${vlanId}`,
+    { method: 'DELETE' },
+  )
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `${res.status} ${res.statusText}`)
+  }
 }
 
 export async function createVlan(payload: VlanCreatePayload): Promise<Vlan> {
@@ -142,6 +175,77 @@ export async function updateDeviceInterface(
     }),
   })
   return parseJson<DeviceInterface>(res)
+}
+
+export async function upsertInterfaceVlan(
+  interfaceId: string,
+  payload: InterfaceVlanUpsertPayload,
+): Promise<void> {
+  const body: Record<string, unknown> = { mode: payload.mode }
+  if (payload.accessVlanId != null) {
+    body.accessVlanId = payload.accessVlanId
+  }
+  if (payload.nativeVlanId != null) {
+    body.nativeVlanId = payload.nativeVlanId
+  }
+  const res = await apiFetch(
+    `/api/v1/network/interfaces/${interfaceId}/vlan`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  )
+  await parseJson<unknown>(res)
+}
+
+export async function deleteInterfaceVlan(interfaceId: string): Promise<void> {
+  const res = await apiFetch(
+    `/api/v1/network/interfaces/${interfaceId}/vlan`,
+    { method: 'DELETE' },
+  )
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `${res.status} ${res.statusText}`)
+  }
+}
+
+export async function listTrunkAllowedVlans(
+  interfaceId: string,
+): Promise<TrunkAllowedVlanEntry[]> {
+  const res = await apiFetch(
+    `/api/v1/network/interfaces/${interfaceId}/trunk-allowed-vlans`,
+  )
+  return parseJson<TrunkAllowedVlanEntry[]>(res)
+}
+
+export async function addTrunkAllowedVlan(
+  interfaceId: string,
+  vlanId: number,
+): Promise<TrunkAllowedVlanEntry> {
+  const res = await apiFetch(
+    `/api/v1/network/interfaces/${interfaceId}/trunk-allowed-vlans`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vlanId }),
+    },
+  )
+  return parseJson<TrunkAllowedVlanEntry>(res)
+}
+
+export async function removeTrunkAllowedVlan(
+  interfaceId: string,
+  vlanId: number,
+): Promise<void> {
+  const res = await apiFetch(
+    `/api/v1/network/interfaces/${interfaceId}/trunk-allowed-vlans/${vlanId}`,
+    { method: 'DELETE' },
+  )
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `${res.status} ${res.statusText}`)
+  }
 }
 
 export async function deleteDeviceInterface(interfaceId: string): Promise<void> {

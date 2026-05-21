@@ -32,19 +32,64 @@ import ru.krizhanovskiy.admin.panel.backend.kafka.dto.SetTrunkReconfigAction;
 import ru.krizhanovskiy.admin.panel.backend.kafka.dto.SwitchVlanParams;
 import ru.krizhanovskiy.admin.panel.backend.kafka.dto.SwitchVlanPortState;
 import ru.krizhanovskiy.admin.panel.backend.kafka.dto.SwitchVlanReconfigAction;
+import ru.krizhanovskiy.admin.panel.backend.domain.ReconfigurationTaskStatus;
+import ru.krizhanovskiy.admin.panel.backend.domain.enums.ReconfigurationTaskExecutionStatus;
+import ru.krizhanovskiy.admin.panel.backend.kafka.dto.ReconfigurationEntityStatus;
 import ru.krizhanovskiy.admin.panel.backend.kafka.dto.VlanReconfigAction;
+import ru.krizhanovskiy.admin.panel.backend.service.ReconfigurationTaskStatusService.TaskExecutionStatusBundle;
+
+import java.util.Map;
+import java.util.UUID;
 
 @Component
 public class ReconfigurationTaskMapper {
 
     public ReconfigurationTaskResponse toResponse(ReconfigurationTask source) {
+        return toResponse(source, null);
+    }
+
+    public ReconfigurationEntityStatus effectiveTaskStatus(
+            ReconfigurationTask source, TaskExecutionStatusBundle bundle) {
+        ReconfigurationTaskStatus taskDb = bundle != null ? bundle.taskStatus() : null;
+        return resolveStatus(source.status(), taskDb);
+    }
+
+    public ReconfigurationEntityStatus effectiveBatchStatus(
+            ReconfigurationBatch batch, TaskExecutionStatusBundle bundle) {
+        ReconfigurationTaskStatus batchDb =
+                bundle != null ? bundle.batchStatuses().get(batch.id()) : null;
+        return resolveStatus(batch.status(), batchDb);
+    }
+
+    public boolean isTaskCancellable(ReconfigurationTask task, TaskExecutionStatusBundle bundle) {
+        ReconfigurationEntityStatus effective = effectiveTaskStatus(task, bundle);
+        if (effective == ReconfigurationEntityStatus.PENDING
+                || effective == ReconfigurationEntityStatus.AWAITING_CONFIRMATION) {
+            return true;
+        }
+        if (effective == ReconfigurationEntityStatus.RUNNING) {
+            return task.batches().stream()
+                    .allMatch(batch -> effectiveBatchStatus(batch, bundle) == ReconfigurationEntityStatus.PENDING);
+        }
+        return false;
+    }
+
+    public ReconfigurationTaskResponse toResponse(
+            ReconfigurationTask source, Map<UUID, TaskExecutionStatusBundle> statusByTaskId) {
+        TaskExecutionStatusBundle bundle =
+                statusByTaskId != null ? statusByTaskId.get(source.id()) : null;
+        ReconfigurationTaskStatus taskDb = bundle != null ? bundle.taskStatus() : null;
         return new ReconfigurationTaskResponse(
                 source.id(),
                 source.initiatedBy(),
                 source.createdAt(),
-                source.status(),
-                source.batches().stream().map(this::toBatchView).toList()
-        );
+                effectiveTaskStatus(source, bundle),
+                taskDb != null ? taskDb.getUpdatedAt() : null,
+                taskDb != null ? taskDb.getUpdatedBy() : null,
+                taskDb != null ? taskDb.getStatusReason() : null,
+                source.batches().stream()
+                        .map(batch -> toBatchView(batch, bundle))
+                        .toList());
     }
 
     public ReconfigurationBatch toKafkaBatch(ReconfigurationBatchView view) {
@@ -57,12 +102,39 @@ public class ReconfigurationTaskMapper {
     }
 
     public ReconfigurationBatchView toBatchView(ReconfigurationBatch batch) {
+        return toBatchView(batch, null);
+    }
+
+    public ReconfigurationBatchView toBatchView(ReconfigurationBatch batch, TaskExecutionStatusBundle bundle) {
+        ReconfigurationTaskStatus batchDb =
+                bundle != null ? bundle.batchStatuses().get(batch.id()) : null;
         return new ReconfigurationBatchView(
                 batch.id(),
                 batch.criticality(),
-                batch.status(),
-                batch.actions().stream().map(this::toApiAction).toList()
-        );
+                resolveStatus(batch.status(), batchDb),
+                batchDb != null ? batchDb.getUpdatedAt() : null,
+                batch.actions().stream().map(this::toApiAction).toList());
+    }
+
+    private static ReconfigurationEntityStatus resolveStatus(
+            ReconfigurationEntityStatus kafkaStatus, ReconfigurationTaskStatus dbRow) {
+        if (dbRow == null) {
+            return kafkaStatus;
+        }
+        return toEntityStatus(dbRow.getStatus());
+    }
+
+    private static ReconfigurationEntityStatus toEntityStatus(ReconfigurationTaskExecutionStatus status) {
+        return switch (status) {
+            case PENDING -> ReconfigurationEntityStatus.PENDING;
+            case IN_PROGRESS -> ReconfigurationEntityStatus.RUNNING;
+            case SUCCESS -> ReconfigurationEntityStatus.SUCCESS;
+            case FAILED -> ReconfigurationEntityStatus.FAILED;
+            case ROLLED_BACK -> ReconfigurationEntityStatus.ROLLED_BACK;
+            case CANCEL -> ReconfigurationEntityStatus.CANCEL;
+            case AWAITING_CONFIRMATION -> ReconfigurationEntityStatus.AWAITING_CONFIRMATION;
+            case CONFIRMED -> ReconfigurationEntityStatus.CONFIRMED;
+        };
     }
 
     public VlanReconfigAction toKafkaAction(ReconfigurationVlanAction action) {

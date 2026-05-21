@@ -36,6 +36,7 @@ public class TrunkAllowedVlanService {
         var iface = deviceInterfaceService.interfaceById(interfaceId);
         var vlan = vlanService.vlanById(request.vlanId());
         TrunkAllowedVlan e = new TrunkAllowedVlan();
+        e.setId(new TrunkAllowedVlanId(iface.getId(), vlan.getVlanId()));
         e.setDeviceInterface(iface);
         e.setVlan(vlan);
         return networkEntityMapper.toTrunkAllowedVlanResponse(trunkAllowedVlanRepository.save(e));

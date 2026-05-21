@@ -548,14 +548,14 @@
 }
 
 .device-node__strip--top {
-  min-height: 44px;
+  min-height: 64px;
   margin: -4px -6px 8px;
   padding: 4px 4px 0;
   border-bottom: 1px solid var(--border);
 }
 
 .device-node__strip--bottom {
-  min-height: 44px;
+  min-height: 64px;
   margin: 8px -6px -4px;
   padding: 0 4px 4px;
   border-top: 1px solid var(--border);
@@ -572,7 +572,7 @@
 
 .device-node__strip--left {
   position: relative;
-  flex: 0 0 42px;
+  flex: 0 0 56px;
   min-height: 48px;
   margin: 0 2px 0 0;
   padding: 6px 0;
@@ -581,7 +581,7 @@
 
 .device-node__strip--right {
   position: relative;
-  flex: 0 0 42px;
+  flex: 0 0 56px;
   min-height: 48px;
   margin: 0 0 0 2px;
   padding: 6px 0;
@@ -658,6 +658,49 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.device-node__port-label-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+}
+
+.device-node__port-label-stack--vertical {
+  flex-direction: column;
+}
+
+.device-node__port-label-stack--side {
+  align-items: flex-start;
+  max-width: 46px;
+}
+
+.device-node__port-cap--right .device-node__port-label-stack--side {
+  align-items: flex-end;
+}
+
+.device-node__port-vlan {
+  display: block;
+  font-size: 7px;
+  font-family: var(--mono);
+  line-height: 1.15;
+  color: var(--text);
+  opacity: 0.92;
+  max-width: 46px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-node__port-label-stack--vertical .device-node__port-vlan {
+  writing-mode: horizontal-tb;
+  max-width: 22px;
+  text-align: center;
+  white-space: normal;
+  word-break: break-all;
+  max-height: 28px;
 }
 
 .network-graph__canvas .device-node .react-flow__handle {

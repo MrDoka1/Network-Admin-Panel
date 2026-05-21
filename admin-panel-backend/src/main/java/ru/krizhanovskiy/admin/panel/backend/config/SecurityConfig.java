@@ -30,13 +30,21 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource(
-            @Value("${cors.allowed-origins}") String allowedOriginsRaw) {
+            @Value("${cors.allowed-origins}") String allowedOriginsRaw,
+            @Value("${cors.allowed-origin-patterns:}") String allowedPatternsRaw) {
         List<String> allowedOrigins = Arrays.stream(allowedOriginsRaw.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
+        List<String> allowedPatterns = Arrays.stream(allowedPatternsRaw.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .toList();
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(allowedOrigins);
+        if (!allowedPatterns.isEmpty()) {
+            configuration.setAllowedOriginPatterns(allowedPatterns);
+        }
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

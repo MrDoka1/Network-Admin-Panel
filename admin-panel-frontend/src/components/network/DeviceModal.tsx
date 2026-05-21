@@ -7,17 +7,23 @@ import {
   type FormEvent,
 } from 'react'
 import {
+  addTrunkAllowedVlan,
   createDevice,
   createDeviceInterface,
   createVlan,
   deleteDeviceInterface,
+  deleteInterfaceVlan,
   fetchInterfacesForDevice,
   fetchVlans,
+  listTrunkAllowedVlans,
+  removeTrunkAllowedVlan,
   updateDevice,
   updateDeviceInterface,
+  upsertInterfaceVlan,
 } from '../../api/networkClient'
 import type {
   DeviceInterface,
+  DeviceInterfaceVlanBinding,
   DeviceType,
   Link,
   NetworkDevice,
@@ -31,6 +37,7 @@ import {
   parseMaskBits,
   splitHostAndCidrMask,
 } from '../../utils/ipv4Cidr'
+import { formatPhysicalL2Summary } from '../../utils/portVlanLabels'
 import './DeviceModal.css'
 
 type Mode = 'create' | 'edit'
@@ -42,6 +49,13 @@ type FormState = {
   status: NetworkDeviceStatus
 }
 
+type L2EditState = {
+  mode: 'none' | 'access' | 'trunk'
+  accessVlanId: string
+  nativeVlanId: string
+  trunkAllowedCsv: string
+}
+
 type EditRow = {
   id: string
   name: string
@@ -49,6 +63,8 @@ type EditRow = {
   dot1qVlanId: string
   ipv4: string
   maskBits: string
+  /** Режим access/trunk на физическом порту */
+  l2?: L2EditState
 }
 
 const defaultForm = (): FormState => ({
@@ -100,6 +116,86 @@ function parentName(
 ): string {
   if (!iface.parentInterfaceId) return '—'
   return byId.get(iface.parentInterfaceId)?.name ?? iface.parentInterfaceId
+}
+
+function parseVlanIdList(csv: string): number[] {
+  const out: number[] = []
+  for (const part of csv.split(/[,;\s]+/)) {
+    const t = part.trim()
+    if (!t) continue
+    const n = Number(t)
+    if (!Number.isInteger(n) || n < 1 || n > 4094) {
+      throw new Error(`Некорректный VLAN в списке: «${t}» (ожидается 1–4094)`)
+    }
+    out.push(n)
+  }
+  return [...new Set(out)].sort((a, b) => a - b)
+}
+
+async function applyPhysicalPortL2(
+  interfaceId: string,
+  prevBinding: DeviceInterfaceVlanBinding | null | undefined,
+  l2: L2EditState,
+): Promise<void> {
+  const prev = prevBinding ?? null
+  if (l2.mode === 'none') {
+    const cur = await listTrunkAllowedVlans(interfaceId)
+    for (const e of cur) {
+      await removeTrunkAllowedVlan(interfaceId, e.vlanId)
+    }
+    if (prev) {
+      await deleteInterfaceVlan(interfaceId)
+    }
+    return
+  }
+
+  if (l2.mode === 'access') {
+    const cur = await listTrunkAllowedVlans(interfaceId)
+    for (const e of cur) {
+      await removeTrunkAllowedVlan(interfaceId, e.vlanId)
+    }
+    const vid = Number(l2.accessVlanId)
+    if (!Number.isInteger(vid) || l2.accessVlanId.trim() === '') {
+      throw new Error('Укажите access VLAN.')
+    }
+    await upsertInterfaceVlan(interfaceId, {
+      mode: 'ACCESS',
+      accessVlanId: vid,
+    })
+    return
+  }
+
+  const nativeRaw = l2.nativeVlanId.trim()
+  let nativeVlanId: number | null = null
+  if (nativeRaw !== '') {
+    const nativeN = Number(nativeRaw)
+    if (!Number.isInteger(nativeN) || nativeN < 1 || nativeN > 4094) {
+      throw new Error('Native VLAN: целое число 1–4094 или оставьте пустым.')
+    }
+    nativeVlanId = nativeN
+  }
+  await upsertInterfaceVlan(interfaceId, {
+    mode: 'TRUNK',
+    nativeVlanId,
+  })
+  let want: Set<number>
+  try {
+    want = new Set(parseVlanIdList(l2.trunkAllowedCsv))
+  } catch (e) {
+    throw e instanceof Error ? e : new Error(String(e))
+  }
+  const curList = await listTrunkAllowedVlans(interfaceId)
+  const curSet = new Set(curList.map((c) => c.vlanId))
+  for (const v of curSet) {
+    if (!want.has(v)) {
+      await removeTrunkAllowedVlan(interfaceId, v)
+    }
+  }
+  for (const v of want) {
+    if (!curSet.has(v)) {
+      await addTrunkAllowedVlan(interfaceId, v)
+    }
+  }
 }
 
 export type DeviceModalLinkContext = {
@@ -301,6 +397,20 @@ export function DeviceModal({
 
   const startEdit = useCallback((iface: DeviceInterface) => {
     const { host, maskBits } = splitHostAndCidrMask(iface.ipAddress)
+    const isPhysical = !iface.parentInterfaceId
+    const b = iface.vlanBinding
+    const l2: L2EditState | undefined = isPhysical
+      ? {
+          mode: !b ? 'none' : b.mode === 'ACCESS' ? 'access' : 'trunk',
+          accessVlanId:
+            b?.accessVlanId != null ? String(b.accessVlanId) : '',
+          nativeVlanId:
+            b?.nativeVlanId != null ? String(b.nativeVlanId) : '',
+          trunkAllowedCsv: b?.trunkAllowedVlanIds?.length
+            ? [...b.trunkAllowedVlanIds].sort((a, z) => a - z).join(', ')
+            : '',
+        }
+      : undefined
     setEditRow({
       id: iface.id,
       name: iface.name,
@@ -309,6 +419,7 @@ export function DeviceModal({
         iface.dot1qVlanId != null ? String(iface.dot1qVlanId) : '',
       ipv4: host,
       maskBits,
+      l2,
     })
   }, [])
 
@@ -330,6 +441,22 @@ export function DeviceModal({
       }
       dot1qVlanId = vid
     }
+    if (!isSub && editRow.l2) {
+      if (editRow.l2.mode === 'access') {
+        if (!editRow.l2.accessVlanId.trim()) {
+          setPortsError('В режиме access выберите VLAN.')
+          return
+        }
+      }
+      if (editRow.l2.mode === 'trunk') {
+        try {
+          parseVlanIdList(editRow.l2.trunkAllowedCsv)
+        } catch (e) {
+          setPortsError(e instanceof Error ? e.message : String(e))
+          return
+        }
+      }
+    }
     const ipTrim = editRow.ipv4.trim()
     if (ipTrim && !isValidIpv4Dotted(ipTrim)) {
       setPortsError('Некорректный IPv4-адрес (ожидаются четыре октета 0–255).')
@@ -348,17 +475,16 @@ export function DeviceModal({
     setSavingEditPort(true)
     setPortsError(null)
     try {
-      const updated = await updateDeviceInterface(editRow.id, {
+      await updateDeviceInterface(editRow.id, {
         name,
         adminStatus: editRow.adminStatus,
         dot1qVlanId: isSub ? dot1qVlanId : null,
         ipAddress: combinedL3,
       })
-      setPorts((prev) =>
-        sortInterfacesForDisplay(
-          prev.map((p) => (p.id === updated.id ? updated : p)),
-        ),
-      )
+      if (!isSub && editRow.l2) {
+        await applyPhysicalPortL2(editRow.id, iface.vlanBinding, editRow.l2)
+      }
+      await loadPorts()
       setEditRow(null)
       notifyPortsChanged()
     } catch (e) {
@@ -366,7 +492,7 @@ export function DeviceModal({
     } finally {
       setSavingEditPort(false)
     }
-  }, [editRow, ports, notifyPortsChanged])
+  }, [editRow, ports, notifyPortsChanged, loadPorts])
 
   const removePort = useCallback(
     async (iface: DeviceInterface) => {
@@ -710,7 +836,9 @@ export function DeviceModal({
                       <tr>
                         <th scope="col">Имя</th>
                         <th scope="col">Родитель</th>
-                        <th scope="col">VLAN</th>
+                        <th scope="col">802.1Q</th>
+                        <th scope="col">Режим L2</th>
+                        <th scope="col">Access / транк</th>
                         <th scope="col">L3</th>
                         <th scope="col">Admin</th>
                         <th scope="col">Соединение</th>
@@ -768,6 +896,144 @@ export function DeviceModal({
                                     </option>
                                   ))}
                                 </select>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                            <td>
+                              {!isSub && editRow.l2 ? (
+                                <select
+                                  className="device-modal__ports-select"
+                                  value={editRow.l2.mode}
+                                  onChange={(e) => {
+                                    const mode = e.target.value as L2EditState['mode']
+                                    setEditRow((r) =>
+                                      r?.l2
+                                        ? {
+                                            ...r,
+                                            l2: {
+                                              ...r.l2,
+                                              mode,
+                                              accessVlanId:
+                                                mode === 'access'
+                                                  ? r.l2.accessVlanId
+                                                  : '',
+                                              nativeVlanId:
+                                                mode === 'trunk'
+                                                  ? r.l2.nativeVlanId
+                                                  : '',
+                                              trunkAllowedCsv:
+                                                mode === 'trunk'
+                                                  ? r.l2.trunkAllowedCsv
+                                                  : '',
+                                            },
+                                          }
+                                        : r,
+                                    )
+                                  }}
+                                  disabled={portsBusy}
+                                  aria-label="Режим L2"
+                                >
+                                  <option value="none">Нет</option>
+                                  <option value="access">Access</option>
+                                  <option value="trunk">Trunk</option>
+                                </select>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                            <td className="device-modal__ports-l2-cell">
+                              {!isSub && editRow.l2 ? (
+                                editRow.l2.mode === 'none' ? (
+                                  <span className="device-modal__ports-muted">
+                                    —
+                                  </span>
+                                ) : editRow.l2.mode === 'access' ? (
+                                  <select
+                                    className="device-modal__ports-select"
+                                    value={editRow.l2.accessVlanId}
+                                    onChange={(e) =>
+                                      setEditRow((r) =>
+                                        r?.l2
+                                          ? {
+                                              ...r,
+                                              l2: {
+                                                ...r.l2,
+                                                accessVlanId: e.target.value,
+                                              },
+                                            }
+                                          : r,
+                                      )
+                                    }
+                                    disabled={portsBusy || vlans.length === 0}
+                                    aria-label="Access VLAN"
+                                  >
+                                    <option value="">—</option>
+                                    {vlans.map((v) => (
+                                      <option
+                                        key={v.vlanId}
+                                        value={String(v.vlanId)}
+                                      >
+                                        {v.vlanId}
+                                        {v.name ? ` · ${v.name}` : ''}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <div className="device-modal__ports-l2-trunk">
+                                    <select
+                                      className="device-modal__ports-select device-modal__ports-select--native"
+                                      value={editRow.l2.nativeVlanId}
+                                      onChange={(e) =>
+                                        setEditRow((r) =>
+                                          r?.l2
+                                            ? {
+                                                ...r,
+                                                l2: {
+                                                  ...r.l2,
+                                                  nativeVlanId: e.target.value,
+                                                },
+                                              }
+                                            : r,
+                                        )
+                                      }
+                                      disabled={portsBusy || vlans.length === 0}
+                                      aria-label="Native VLAN"
+                                    >
+                                      <option value="">Native…</option>
+                                      {vlans.map((v) => (
+                                        <option
+                                          key={v.vlanId}
+                                          value={String(v.vlanId)}
+                                        >
+                                          {v.vlanId}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <input
+                                      className="device-modal__ports-input device-modal__ports-input--trunk-csv"
+                                      type="text"
+                                      placeholder="Разрешённые: 10, 20, 100"
+                                      value={editRow.l2.trunkAllowedCsv}
+                                      onChange={(e) =>
+                                        setEditRow((r) =>
+                                          r?.l2
+                                            ? {
+                                                ...r,
+                                                l2: {
+                                                  ...r.l2,
+                                                  trunkAllowedCsv:
+                                                    e.target.value,
+                                                },
+                                              }
+                                            : r,
+                                        )
+                                      }
+                                      disabled={portsBusy}
+                                      aria-label="Разрешённые VLAN (через запятую)"
+                                    />
+                                  </div>
+                                )
                               ) : (
                                 '—'
                               )}
@@ -902,6 +1168,16 @@ export function DeviceModal({
                             <td>
                               {iface.dot1qVlanId != null
                                 ? iface.dot1qVlanId
+                                : '—'}
+                            </td>
+                            <td>
+                              {!isSub && iface.vlanBinding
+                                ? iface.vlanBinding.mode
+                                : '—'}
+                            </td>
+                            <td className="device-modal__ports-muted device-modal__ports-l2-cell">
+                              {!isSub
+                                ? formatPhysicalL2Summary(iface.vlanBinding)
                                 : '—'}
                             </td>
                             <td className="device-modal__ports-muted">

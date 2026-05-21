@@ -6,16 +6,22 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.network.DeviceInterfaceCreateRequest;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.network.DeviceInterfaceResponse;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.network.DeviceInterfaceUpdateRequest;
+import ru.krizhanovskiy.admin.panel.backend.api.dto.network.DeviceInterfaceVlanBindingResponse;
 import ru.krizhanovskiy.admin.panel.backend.domain.DeviceInterface;
 import ru.krizhanovskiy.admin.panel.backend.domain.Vlan;
 import ru.krizhanovskiy.admin.panel.backend.mapper.NetworkEntityMapper;
 import ru.krizhanovskiy.admin.panel.backend.repository.DeviceInterfaceRepository;
+import ru.krizhanovskiy.admin.panel.backend.repository.TrunkAllowedVlanRepository;
 import ru.krizhanovskiy.admin.panel.backend.repository.VlanRepository;
 import ru.krizhanovskiy.admin.panel.backend.web.error.ConflictException;
 import ru.krizhanovskiy.admin.panel.backend.web.error.NotFoundException;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeSet;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -27,19 +33,21 @@ public class DeviceInterfaceService {
     private final DeviceInterfaceRepository deviceInterfaceRepository;
     private final NetworkDeviceService networkDeviceService;
     private final VlanRepository vlanRepository;
+    private final TrunkAllowedVlanRepository trunkAllowedVlanRepository;
     private final NetworkEntityMapper networkEntityMapper;
 
     @Transactional(readOnly = true)
     public List<DeviceInterfaceResponse> listByDevice(UUID deviceId) {
         networkDeviceService.deviceById(deviceId);
-        return deviceInterfaceRepository.findByDevice_Id(deviceId).stream()
-                .map(networkEntityMapper::toDeviceInterfaceResponse)
-                .toList();
+        List<DeviceInterface> interfaces = deviceInterfaceRepository.findByDevice_Id(deviceId);
+        List<UUID> ids = interfaces.stream().map(DeviceInterface::getId).toList();
+        Map<UUID, List<Integer>> trunkByIf = loadTrunkVlanIdsByInterfaceIds(ids);
+        return interfaces.stream().map(i -> toResponse(i, trunkByIf)).toList();
     }
 
     @Transactional(readOnly = true)
     public DeviceInterfaceResponse getById(UUID id) {
-        return networkEntityMapper.toDeviceInterfaceResponse(interfaceById(id));
+        return toResponse(interfaceById(id));
     }
 
     @Transactional
@@ -80,7 +88,7 @@ public class DeviceInterfaceService {
         assertUniqueName(deviceId, request.name(), null);
         assertUniqueParentVlan(e);
 
-        return networkEntityMapper.toDeviceInterfaceResponse(deviceInterfaceRepository.save(e));
+        return toResponse(deviceInterfaceRepository.save(e));
     }
 
     @Transactional
@@ -107,7 +115,7 @@ public class DeviceInterfaceService {
         assertUniqueName(e.getDevice().getId(), request.name(), e.getId());
         assertUniqueParentVlan(e);
 
-        return networkEntityMapper.toDeviceInterfaceResponse(deviceInterfaceRepository.save(e));
+        return toResponse(deviceInterfaceRepository.save(e));
     }
 
     @Transactional
@@ -119,8 +127,61 @@ public class DeviceInterfaceService {
     }
 
     DeviceInterface interfaceById(UUID id) {
-        return deviceInterfaceRepository.findById(id)
+        return deviceInterfaceRepository.findByIdWithAssociations(id)
                 .orElseThrow(() -> new NotFoundException("Интерфейс не найден: " + id));
+    }
+
+    private DeviceInterfaceResponse toResponse(DeviceInterface e) {
+        Map<UUID, List<Integer>> trunkMap = loadTrunkVlanIdsByInterfaceIds(List.of(e.getId()));
+        return toResponse(e, trunkMap);
+    }
+
+    private DeviceInterfaceResponse toResponse(DeviceInterface e, Map<UUID, List<Integer>> trunkByIf) {
+        DeviceInterfaceResponse base = networkEntityMapper.toDeviceInterfaceResponse(e);
+        return merge(
+                base,
+                buildVlanBinding(e, trunkByIf.getOrDefault(e.getId(), List.of())));
+    }
+
+    private static DeviceInterfaceResponse merge(
+            DeviceInterfaceResponse base, DeviceInterfaceVlanBindingResponse vlanBinding) {
+        return new DeviceInterfaceResponse(
+                base.id(),
+                base.deviceId(),
+                base.name(),
+                base.adminStatus(),
+                base.parentInterfaceId(),
+                base.dot1qVlanId(),
+                base.ipAddress(),
+                vlanBinding);
+    }
+
+    private static DeviceInterfaceVlanBindingResponse buildVlanBinding(
+            DeviceInterface e, List<Integer> trunkVlanIds) {
+        var iv = e.getInterfaceVlan();
+        if (iv == null) {
+            return null;
+        }
+        List<Integer> trunkSorted =
+                trunkVlanIds.stream().collect(Collectors.collectingAndThen(
+                        Collectors.toCollection(TreeSet::new), ArrayList::new));
+        Integer access = iv.getAccessVlan() != null ? Integer.valueOf(iv.getAccessVlan().getVlanId()) : null;
+        Integer nativeV = iv.getNativeVlan() != null ? Integer.valueOf(iv.getNativeVlan().getVlanId()) : null;
+        return new DeviceInterfaceVlanBindingResponse(iv.getMode(), access, nativeV, trunkSorted);
+    }
+
+    private Map<UUID, List<Integer>> loadTrunkVlanIdsByInterfaceIds(List<UUID> interfaceIds) {
+        if (interfaceIds.isEmpty()) {
+            return Map.of();
+        }
+        return trunkAllowedVlanRepository.findAllByInterfaceIdInFetchVlan(interfaceIds).stream()
+                .collect(Collectors.groupingBy(
+                        t -> t.getDeviceInterface().getId(),
+                        Collectors.collectingAndThen(
+                                Collectors.mapping(
+                                        t -> Integer.valueOf(t.getVlan().getVlanId()),
+                                        Collectors.toCollection(TreeSet::new)),
+                                ArrayList::new)));
     }
 
     private Vlan vlanByVid(Short vlanId) {

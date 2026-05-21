@@ -1,0 +1,270 @@
+.vlan-matrix {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.vlan-matrix__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 20px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.vlan-matrix__header h1 {
+  margin: 0;
+  width: 100%;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.vlan-matrix__create {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 14px;
+}
+
+.vlan-matrix__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.vlan-matrix__field label {
+  font-weight: 500;
+  color: var(--text-h);
+}
+
+.vlan-matrix__field input {
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  min-width: 120px;
+}
+
+.vlan-matrix__field input[type='number'] {
+  width: 100px;
+}
+
+.vlan-matrix__btn {
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.vlan-matrix__btn:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  box-shadow: var(--shadow);
+}
+
+.vlan-matrix__btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.vlan-matrix__btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.vlan-matrix__error {
+  margin: 0;
+  width: 100%;
+  font-size: 14px;
+  color: #b91c1c;
+}
+
+.vlan-matrix__loading,
+.vlan-matrix__empty {
+  padding: 24px 20px;
+  color: var(--text);
+}
+
+.vlan-matrix__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 20px 20px;
+}
+
+.vlan-matrix__table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.vlan-matrix__table th,
+.vlan-matrix__table td {
+  border: 1px solid var(--border);
+}
+
+.vlan-matrix__table .vlan-matrix__corner,
+.vlan-matrix__table .vlan-matrix__col-head {
+  padding: 10px 12px;
+}
+
+.vlan-matrix__table .vlan-matrix__row-head {
+  padding: 0 12px;
+  min-height: 36px;
+  line-height: 36px;
+  box-sizing: border-box;
+}
+
+.vlan-matrix__corner {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: var(--bg);
+  min-width: 160px;
+  font-weight: 600;
+  color: var(--text-h);
+  text-align: left;
+  vertical-align: bottom;
+}
+
+.vlan-matrix__col-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg);
+  min-width: 44px;
+  text-align: center;
+  font-weight: 600;
+  color: var(--text-h);
+  white-space: nowrap;
+}
+
+.vlan-matrix__col-name {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text);
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vlan-matrix__row-head {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bg);
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-h);
+  white-space: nowrap;
+}
+
+.vlan-matrix__table td.vlan-matrix__cell {
+  position: relative;
+  padding: 0;
+  min-width: 44px;
+  min-height: 36px;
+  vertical-align: top;
+}
+
+.vlan-matrix__cell-btn {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  padding: 4px 3px;
+  border: none;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.15;
+  text-align: center;
+  color: var(--text-h);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.vlan-matrix__cell-btn:disabled {
+  cursor: wait;
+  opacity: 0.85;
+}
+
+.vlan-matrix__cell-btn--absent {
+  background: var(--code-bg);
+  color: transparent;
+}
+
+.vlan-matrix__cell-btn--absent:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.vlan-matrix__cell-btn--present {
+  background: #22c55e;
+  color: transparent;
+}
+
+.vlan-matrix__cell-btn--present:hover:not(:disabled) {
+  color: #fff;
+}
+
+.vlan-matrix__cell-btn--pending-add {
+  background: #fef08a;
+  color: var(--text-h);
+  min-width: 72px;
+}
+
+.vlan-matrix__cell-btn--pending-remove {
+  background: #fecaca;
+  color: var(--text-h);
+  min-width: 72px;
+}
+
+.vlan-matrix__table td.vlan-matrix__cell:has(.vlan-matrix__cell-btn--pending-add),
+.vlan-matrix__table td.vlan-matrix__cell:has(.vlan-matrix__cell-btn--pending-remove),
+.vlan-matrix__table td.vlan-matrix__cell:has(.vlan-matrix__cell-btn--busy) {
+  min-height: 44px;
+}
+
+.vlan-matrix__table tr:has(.vlan-matrix__cell-btn--pending-add) .vlan-matrix__row-head,
+.vlan-matrix__table tr:has(.vlan-matrix__cell-btn--pending-remove) .vlan-matrix__row-head,
+.vlan-matrix__table tr:has(.vlan-matrix__cell-btn--busy) .vlan-matrix__row-head {
+  min-height: 44px;
+  line-height: 44px;
+}
+
+.vlan-matrix__cell-btn--busy {
+  background: var(--accent-bg);
+  color: var(--text-h);
+}
+
+@media (prefers-color-scheme: dark) {
+  .vlan-matrix__cell-btn--present {
+    background: #16a34a;
+  }
+
+  .vlan-matrix__cell-btn--pending-add {
+    background: #854d0e;
+    color: #fef9c3;
+  }
+
+  .vlan-matrix__cell-btn--pending-remove {
+    background: #7f1d1d;
+    color: #fecaca;
+  }
+}

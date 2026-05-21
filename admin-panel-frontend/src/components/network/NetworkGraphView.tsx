@@ -32,6 +32,10 @@ import type {
   EndpointNetworkAttachment,
 } from '../../types/endpoint'
 import type { DeviceInterface, Link, NetworkDevice } from '../../types/network'
+import {
+  rootPortVlanCaption,
+  rootPortVlanTooltip,
+} from '../../utils/portVlanLabels'
 import { DeviceModal } from './DeviceModal'
 import { VlanModal } from './VlanModal'
 import {
@@ -342,6 +346,8 @@ function buildGraph(
         epIfaceById,
         allPos,
       ),
+      vlanCaption: rootPortVlanCaption(iface.vlanBinding),
+      vlanTooltip: rootPortVlanTooltip(iface.vlanBinding),
     }))
     const data: DeviceNodeData = {
       hostname: d.hostname,
@@ -841,7 +847,12 @@ export const NetworkGraphView = memo(function NetworkGraphView() {
     [devices],
   )
 
-  const stats = `${routerCount} маршр. · ${switchCount} коммут. · ${endpointDevices.length} оконеч. · ${links.length} линков · ${attachments.length} к хостам · ${interfaces.length + endpointInterfaces.length} портов`
+  const subIfCount = useMemo(
+    () => interfaces.filter((i) => i.parentInterfaceId).length,
+    [interfaces],
+  )
+
+  const stats = `${routerCount} маршр. · ${switchCount} коммут. · ${endpointDevices.length} оконеч. · ${links.length} линков · ${attachments.length} к хостам · ${interfaces.length + endpointInterfaces.length - subIfCount} портов · ${subIfCount} сабинт.`
 
   return (
     <div className="network-graph">

@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotEmpty;
 import ru.krizhanovskiy.admin.panel.backend.kafka.dto.BatchCriticality;
 import ru.krizhanovskiy.admin.panel.backend.kafka.dto.ReconfigurationEntityStatus;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -14,6 +15,8 @@ public record ReconfigurationBatchView(
         UUID id,
         BatchCriticality criticality,
         ReconfigurationEntityStatus status,
+        @Schema(description = "Время последнего обновления статуса батча в БД")
+        Instant updatedAt,
         @NotEmpty @Valid List<@Valid ReconfigurationVlanAction> actions
 ) {
 }

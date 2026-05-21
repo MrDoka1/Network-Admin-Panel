@@ -1,0 +1,670 @@
+.reconfig-builder {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) 1fr;
+  gap: 0;
+  min-height: calc(100svh - 168px);
+  align-items: stretch;
+  text-align: left;
+}
+
+@media (max-width: 900px) {
+  .reconfig-builder {
+    grid-template-columns: 1fr;
+  }
+}
+
+.reconfig-builder__palette {
+  border-right: 1px solid var(--border);
+  background: var(--code-bg);
+  padding: 16px 14px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: calc(100svh - 120px);
+  overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+  .reconfig-builder__palette {
+    position: static;
+    max-height: none;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+.reconfig-builder__palette h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-h);
+  letter-spacing: -0.01em;
+}
+
+.reconfig-builder__palette p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.reconfig-builder__hint {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.88;
+  line-height: 1.4;
+}
+
+.reconfig-builder__templates {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reconfig-builder__tpl {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  cursor: grab;
+  text-align: left;
+  font: inherit;
+  color: var(--text-h);
+  box-shadow: var(--shadow);
+  user-select: none;
+  -webkit-user-select: none;
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease,
+    transform 0.12s ease;
+}
+
+.reconfig-builder__tpl:focus {
+  outline: none;
+}
+
+.reconfig-builder__tpl:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.reconfig-builder__tpl:hover {
+  border-color: var(--accent-border);
+  box-shadow: var(--shadow), 0 0 0 1px var(--accent-border);
+}
+
+.reconfig-builder__tpl:active {
+  cursor: grabbing;
+  transform: scale(0.99);
+}
+
+.reconfig-builder__tpl--batch {
+  border-left: 4px solid var(--accent);
+}
+
+.reconfig-builder__tpl--batch.reconfig-builder__tpl--crit {
+  border-left-color: #dc2626;
+}
+
+.reconfig-builder__tpl--batch.reconfig-builder__tpl--opt {
+  border-left-color: #6b7280;
+}
+
+.reconfig-builder__tpl-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.reconfig-builder__tpl-desc {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.reconfig-builder__canvas {
+  padding: 16px 20px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.reconfig-builder__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.reconfig-builder__toolbar-spacer {
+  flex: 1;
+  min-width: 8px;
+}
+
+.reconfig-builder__msg {
+  margin: 0;
+  font-size: 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+}
+
+.reconfig-builder__msg--ok {
+  border-color: rgba(34, 197, 94, 0.45);
+  background: rgba(34, 197, 94, 0.08);
+  color: var(--text-h);
+}
+
+.reconfig-builder__msg--err {
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #b91c1c;
+}
+
+@media (prefers-color-scheme: dark) {
+  .reconfig-builder__msg--err {
+    color: #fca5a5;
+  }
+}
+
+.reconfig-builder__drop-slot {
+  min-height: 14px;
+  border-radius: 6px;
+  transition:
+    min-height 0.12s ease,
+    background 0.12s ease,
+    box-shadow 0.12s ease,
+    border-color 0.12s ease;
+  box-sizing: border-box;
+}
+
+.reconfig-builder__drop-slot--batch,
+.reconfig-builder__drop-slot--action {
+  position: relative;
+}
+
+body[data-reconfig-dnd-kind='batch'] .reconfig-builder__drop-slot--batch {
+  min-height: 44px;
+  margin: 8px 0;
+  padding: 0 4px;
+  border: 2px dashed var(--accent-border);
+  background: var(--accent-bg);
+}
+
+body[data-reconfig-dnd-kind='batch'] .reconfig-builder__drop-slot--batch::after {
+  content: 'Вставить пакет';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+body[data-reconfig-dnd-kind='action'] .reconfig-builder__drop-slot--action {
+  min-height: 44px;
+  margin: 8px 0;
+  padding: 0 4px;
+  border: 2px dashed var(--accent-border);
+  background: var(--accent-bg);
+}
+
+body[data-reconfig-dnd-kind='action'] .reconfig-builder__drop-slot--action::after {
+  content: 'Вставить действие';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+body[data-reconfig-dnd-kind='action'] .reconfig-builder__empty-batch--drop-target {
+  border-style: dashed;
+  border-width: 2px;
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.reconfig-builder__drop-slot--active {
+  background: var(--accent-bg);
+  box-shadow: inset 0 0 0 2px var(--accent-border);
+}
+
+.reconfig-builder__batch-slot {
+  margin: 4px 0;
+}
+
+.reconfig-builder__batch {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.reconfig-builder__tpl--batch.reconfig-builder__tpl--norm {
+  border-left-color: var(--accent);
+}
+
+.reconfig-builder__batch--normal {
+  border-color: var(--accent-border);
+  background: linear-gradient(
+    165deg,
+    var(--accent-bg) 0%,
+    var(--bg) 42%,
+    var(--bg) 100%
+  );
+  box-shadow: var(--shadow);
+}
+
+.reconfig-builder__batch--optional {
+  border-color: var(--border);
+  background: var(--bg);
+  opacity: 0.96;
+}
+
+@media (prefers-color-scheme: dark) {
+  .reconfig-builder__batch--optional {
+    opacity: 0.98;
+  }
+}
+
+.reconfig-builder__batch--critical {
+  border-color: rgba(220, 38, 38, 0.4);
+}
+
+.reconfig-builder__batch-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--code-bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.reconfig-builder__batch-grip {
+  cursor: grab;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text);
+  user-select: none;
+  padding: 2px 4px;
+}
+
+.reconfig-builder__batch-grip:active {
+  cursor: grabbing;
+}
+
+.reconfig-builder__batch-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+  flex: 1;
+  min-width: 0;
+}
+
+.reconfig-builder__batch-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.reconfig-builder__batch-meta label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.reconfig-builder__batch-meta select {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.reconfig-builder__batch-body {
+  padding: 12px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.reconfig-builder__empty-batch {
+  margin: 8px 0 12px;
+  padding: 20px 14px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: var(--code-bg);
+}
+
+.reconfig-builder__action {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin: 6px 0;
+  background: var(--bg);
+}
+
+.reconfig-builder__action-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--code-bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.reconfig-builder__action-grip {
+  cursor: grab;
+  font-size: 16px;
+  color: var(--text);
+  user-select: none;
+  padding: 2px;
+}
+
+.reconfig-builder__action-grip:active {
+  cursor: grabbing;
+}
+
+.reconfig-builder__action-type {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+  flex: 1;
+  min-width: 0;
+}
+
+.reconfig-builder__action-fields {
+  padding: 10px 12px 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px 12px;
+}
+
+.reconfig-builder__state-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+  padding-top: 4px;
+}
+
+@media (max-width: 720px) {
+  .reconfig-builder__state-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.reconfig-builder__state-col {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--code-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reconfig-builder__state-col-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-h);
+  letter-spacing: 0.01em;
+}
+
+.reconfig-builder__state-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text);
+  opacity: 0.88;
+}
+
+.reconfig-builder__state-json {
+  margin: 0;
+  padding: 10px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-h);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.reconfig-builder__state-col .reconfig-builder__field {
+  margin: 0;
+}
+
+.reconfig-builder__state-col .reconfig-builder__field--full {
+  grid-column: unset;
+}
+
+.reconfig-builder__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.reconfig-builder__field span {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.reconfig-builder__field input,
+.reconfig-builder__select {
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.reconfig-builder__select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.reconfig-builder__field-note {
+  display: block;
+  font-size: 11px;
+  color: var(--text);
+  margin-top: 2px;
+}
+
+.reconfig-builder__field-note--err {
+  color: #b91c1c;
+}
+
+@media (prefers-color-scheme: dark) {
+  .reconfig-builder__field-note--err {
+    color: #fca5a5;
+  }
+}
+
+.reconfig-builder__muted {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.75;
+}
+
+.reconfig-builder__vlan-selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+}
+
+.reconfig-builder__vlan-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--accent-border);
+  background: var(--bg);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.reconfig-builder__vlan-chip-id {
+  font-variant-numeric: tabular-nums;
+}
+
+.reconfig-builder__vlan-chip-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.reconfig-builder__vlan-chip-remove:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+}
+
+@media (prefers-color-scheme: dark) {
+  .reconfig-builder__vlan-chip-remove:hover {
+    color: #fca5a5;
+  }
+}
+
+.reconfig-builder__vlan-pool {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.reconfig-builder__vlan-pool-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-h);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.reconfig-builder__vlan-pool-item:hover {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 1px var(--accent-border);
+}
+
+.reconfig-builder__vlan-pool-vid {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.reconfig-builder__vlan-pool-name {
+  font-size: 12px;
+  color: var(--text);
+  font-weight: 400;
+}
+
+.reconfig-builder__field--full {
+  grid-column: 1 / -1;
+}
+
+.reconfig-builder__btn {
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.reconfig-builder__btn:hover:not(:disabled) {
+  border-color: var(--accent-border);
+}
+
+.reconfig-builder__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.reconfig-builder__btn--danger {
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #b91c1c;
+}
+
+@media (prefers-color-scheme: dark) {
+  .reconfig-builder__btn--danger {
+    color: #fca5a5;
+  }
+}
+
+.reconfig-builder__btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.reconfig-builder__btn--primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.reconfig-builder__id-note {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  word-break: break-all;
+}

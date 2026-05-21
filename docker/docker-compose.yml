@@ -1,3 +1,11 @@
+# Запуск на сервере: только pull готовых образов (без сборки из исходников).
+# На сервер положите этот файл и каталог docker/netflow/ (нужен telegraf.conf).
+# Запуск: docker compose -f docker-compose.server.yaml pull && docker compose -f docker-compose.server.yaml up -d
+#
+# CORS: рядом можно положить файл .env с одной строкой (как вы открываете UI в браузере — схема, хост, порт):
+#   CORS_ALLOWED_ORIGINS=http://192.168.1.10:3000,https://panel.example.com
+# Если .env нет, подставятся только localhost (удобно для проверки на самой машине).
+
 services:
   backend:
     image: mrdoka/network-admin-panel-backend:latest
@@ -13,9 +21,9 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      KAFKA_TASKS_TOPIC: ${KAFKA_TASKS_TOPIC:-reconfiguration.tasks}
+      KAFKA_TASKS_TOPIC: ${KAFKA_TASKS_TOPIC:-reconfig.tasks}
       APP_INSTANCE_ID: ${APP_INSTANCE_ID:-admin-panel}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://192.168.10.10:3000}
     ports:
       - "8080:8080"
 
@@ -58,17 +66,6 @@ services:
     volumes:
       - victoriametrics_data:/victoria-metrics-data
 
-  telegraf:
-    image: telegraf:latest
-    container_name: admin-panel-telegraf-netflow
-    restart: unless-stopped
-    depends_on:
-      - victoriametrics
-    ports:
-      - "2055:2055/udp"
-    volumes:
-      - ./docker/netflow/telegraf.conf:/etc/telegraf/telegraf.conf:ro
-
   kafka:
     image: confluentinc/cp-kafka:7.6.0
     container_name: admin-panel-kafka
@@ -93,30 +90,31 @@ services:
     container_name: admin-panel-decision-engine
     restart: unless-stopped
     depends_on:
-      - kafka
-      - postgres
-      - victoriametrics
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      victoriametrics:
+        condition: service_started
     environment:
       KAFKA_BOOTSTRAP: kafka:9092
       KAFKA_TASKS_TOPIC: reconfig.tasks
       KAFKA_RESULTS_TOPIC: results.reconfig
       POSTGRES_DSN: postgresql+asyncpg://postgres:postgres@postgres/admin_panel
       VICTORIAMETRICS_URL: http://victoriametrics:8428
-
       METRICS_POLL_INTERVAL_SEC: "60"
       VLAN_RESOLUTION_METHOD: auto
-      NETFLOW_SRC_ENCODING: int
-
       ANOMALY_THRESHOLD: "3.0"
       BANDWIDTH_THRESHOLD: "0.85"
       QUARANTINE_VLAN: "999"
-
       LINK_CAPACITY_MBPS: "1000"
       ICMP_THRESHOLD: "1000.0"
       NEW_SOURCES_THRESHOLD: "10"
       INTER_VLAN_RATIO_THRESHOLD: "0.4"
       MAX_FLOW_BYTES_THRESHOLD: "100000000"
-
+      SUBINTERFACE_PARENT: "GigabitEthernet0/0/1"
+      SUBINTERFACE_SUBNET_TEMPLATE: "192.168.{vlan_id}.1/24"
+      SUBINTERFACE_ENABLED: "true"
       SEGMENTER_TYPE: greedy
       LOG_LEVEL: INFO
 
@@ -131,25 +129,57 @@ services:
       NETFLOW_LISTEN_PORT: "2055"
       TEMPLATE_TTL_SEC: "3600"
       LOG_LEVEL: INFO
+      # VLAN enrichment для NetFlow v5 (опционально):
+      # V5_VLAN_IF_MAP: '{"192.168.1.1":{"3":100,"4":200},"*":{"5":999}}'
+      # V5_VLAN_SUBNET_MAP: '{"192.168.10.0/24":10,"192.168.20.0/24":20}'
     ports:
       - "2055:2055/udp"
     restart: unless-stopped
 
-  metrics-api:
-    image: scotix/avlan-metrics-api:latest
-    container_name: avlan-metrics-api
-    depends_on:
-      - victoriametrics
-    environment:
-      VM_URL: http://victoriametrics:8428
-      AGG_PERIOD_SEC: "60"
-      DEFAULT_LINK_CAPACITY_BPS: "100000000"
-      API_AUTH_ENABLED: "true"
-      API_USER: ${API_USER:-metrics}
-      API_PASSWORD: ${API_PASSWORD:-change-me-api}
-    ports:
-      - "8000:8000"
+  config-manager:
+    image: thmsshn/config_manager:latest
+    container_name: admin-panel-config-manager
     restart: unless-stopped
+    depends_on:
+      - kafka
+      - postgres
+    environment:
+      APP_NAME: config-manager
+      APP_VERSION: 0.1.0
+      DEBUG: "true"
+      LOG_LEVEL: INFO
+
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@postgres/admin_panel
+      POSTGRES_DSN: postgresql+asyncpg://postgres:postgres@postgres/admin_panel
+      DB_ECHO: "false"
+      DB_POOL_PRE_PING: "true"
+
+      KAFKA_ENABLED: "true"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_REQUEST_TOPIC: reconfig.tasks
+      KAFKA_RESULT_TOPIC: results.reconfig
+      KAFKA_GROUP_ID: config-manager
+
+      CONNECTOR_TYPE: NETMIKO
+
+      QUEUE_ENABLED: "false"
+      QUEUE_URL: ""
+
+      AUTO_EXECUTE_TASKS: "true"
+      DEFAULT_ROLLBACK_ON_FAILURE: "true"
+      EXECUTION_TIMEOUT_SECONDS: "60"
+      MAX_PARALLEL_BATCHES: "4"
+
+      CHECKPOINTS_DIR: data/checkpoints
+
+      SSH_DEFAULT_USERNAME: admin
+      SSH_DEFAULT_PASSWORD: adminpass
+      SSH_ENABLE_SECRET: enablepass
+      SSH_DEVICE_TYPE: cisco_ios
+      SSH_CONNECT_TIMEOUT_SECONDS: "10"
+      SSH_GLOBAL_DELAY_FACTOR: "1"
+      SSH_SAVE_CONFIG: "false"
+
 
 volumes:
   postgres_data:

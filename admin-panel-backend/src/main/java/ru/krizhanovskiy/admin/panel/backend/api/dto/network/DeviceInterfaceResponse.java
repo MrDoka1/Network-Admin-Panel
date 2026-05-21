@@ -13,6 +13,8 @@ public record DeviceInterfaceResponse(
         DeviceInterfaceAdminStatus adminStatus,
         UUID parentInterfaceId,
         Short dot1qVlanId,
-        String ipAddress
+        String ipAddress,
+        @Schema(description = "Режим access/trunk и VLAN из БД; null если для порта нет строки interface_vlan")
+        DeviceInterfaceVlanBindingResponse vlanBinding
 ) {
 }

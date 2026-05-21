@@ -11,11 +11,16 @@ import ru.krizhanovskiy.admin.panel.backend.kafka.KafkaReconfigAdapter;
 import ru.krizhanovskiy.admin.panel.backend.kafka.dto.ReconfigurationBatch;
 import ru.krizhanovskiy.admin.panel.backend.kafka.dto.ReconfigurationEntityStatus;
 import ru.krizhanovskiy.admin.panel.backend.kafka.dto.ReconfigurationTask;
+import ru.krizhanovskiy.admin.panel.backend.domain.enums.ReconfigurationTaskExecutionStatus;
 import ru.krizhanovskiy.admin.panel.backend.mapper.ReconfigurationTaskMapper;
+import ru.krizhanovskiy.admin.panel.backend.service.ReconfigurationTaskStatusService.TaskExecutionStatusBundle;
+import ru.krizhanovskiy.admin.panel.backend.web.error.ConflictException;
+import ru.krizhanovskiy.admin.panel.backend.web.error.NotFoundException;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
 
@@ -28,11 +33,16 @@ public class ReconfigurationTaskService {
 
     private final KafkaReconfigAdapter kafkaReconfigAdapter;
     private final ReconfigurationTaskMapper reconfigurationTaskMapper;
+    private final ReconfigurationTaskStatusService reconfigurationTaskStatusService;
     private final UserAuthService userAuthService;
 
     public List<ReconfigurationTaskResponse> listSnapshot(Duration maxTotalWait, int maxRecords) {
-        return kafkaReconfigAdapter.readTopicSnapshot(maxTotalWait, maxRecords).stream()
-                .map(reconfigurationTaskMapper::toResponse)
+        List<ReconfigurationTask> tasks = kafkaReconfigAdapter.readTopicSnapshot(maxTotalWait, maxRecords);
+        List<UUID> taskIds = tasks.stream().map(ReconfigurationTask::id).toList();
+        Map<UUID, ReconfigurationTaskStatusService.TaskExecutionStatusBundle> statusByTaskId =
+                reconfigurationTaskStatusService.loadLatestByTaskIds(taskIds);
+        return tasks.stream()
+                .map(task -> reconfigurationTaskMapper.toResponse(task, statusByTaskId))
                 .toList();
     }
 
@@ -56,6 +66,62 @@ public class ReconfigurationTaskService {
             throw new IllegalStateException("Не удалось отправить задачу в Kafka: " + cause.getMessage(), cause);
         }
         return reconfigurationTaskMapper.toResponse(task);
+    }
+
+    public ReconfigurationTaskResponse cancel(UUID taskId) {
+        ReconfigurationTask task = requireTaskFromKafka(taskId);
+        TaskExecutionStatusBundle bundle = loadStatusBundle(task.id());
+        if (!reconfigurationTaskMapper.isTaskCancellable(task, bundle)) {
+            throw new ConflictException(
+                    "Отмена доступна только для задач в статусе «Ожидает» или «Ожидает подтверждения»");
+        }
+        reconfigurationTaskStatusService.recordTaskLevelStatus(
+                taskId,
+                ReconfigurationTaskExecutionStatus.CANCEL,
+                resolveUpdatedBy(),
+                null);
+        return taskResponseAfterStatusChange(task);
+    }
+
+    public ReconfigurationTaskResponse confirm(UUID taskId) {
+        ReconfigurationTask task = requireTaskFromKafka(taskId);
+        TaskExecutionStatusBundle bundle = loadStatusBundle(task.id());
+        ReconfigurationEntityStatus effective =
+                reconfigurationTaskMapper.effectiveTaskStatus(task, bundle);
+        if (effective != ReconfigurationEntityStatus.AWAITING_CONFIRMATION) {
+            throw new ConflictException(
+                    "Подтверждение доступно только для задач в статусе «Ожидает подтверждения»");
+        }
+        reconfigurationTaskStatusService.recordTaskLevelStatus(
+                taskId,
+                ReconfigurationTaskExecutionStatus.CONFIRMED,
+                resolveUpdatedBy(),
+                null);
+        return taskResponseAfterStatusChange(task);
+    }
+
+    private ReconfigurationTask requireTaskFromKafka(UUID taskId) {
+        return kafkaReconfigAdapter.readTopicSnapshot(Duration.ofSeconds(45), 5000).stream()
+                .filter(t -> taskId.equals(t.id()))
+                .reduce((first, second) -> second)
+                .orElseThrow(() -> new NotFoundException("Задача реконфигурации не найдена: " + taskId));
+    }
+
+    private TaskExecutionStatusBundle loadStatusBundle(UUID taskId) {
+        Map<UUID, TaskExecutionStatusBundle> statusByTaskId =
+                reconfigurationTaskStatusService.loadLatestByTaskIds(List.of(taskId));
+        return statusByTaskId.get(taskId);
+    }
+
+    private ReconfigurationTaskResponse taskResponseAfterStatusChange(ReconfigurationTask task) {
+        Map<UUID, TaskExecutionStatusBundle> statusByTaskId =
+                reconfigurationTaskStatusService.loadLatestByTaskIds(List.of(task.id()));
+        return reconfigurationTaskMapper.toResponse(task, statusByTaskId);
+    }
+
+    private String resolveUpdatedBy() {
+        User user = userAuthService.getCurrentUser();
+        return user.getLogin();
     }
 
     private String resolveInitiatedBy() {

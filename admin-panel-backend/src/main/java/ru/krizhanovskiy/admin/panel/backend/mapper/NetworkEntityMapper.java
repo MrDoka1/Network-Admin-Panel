@@ -4,6 +4,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingConstants;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.network.DeviceInterfaceResponse;
+import ru.krizhanovskiy.admin.panel.backend.api.dto.network.DeviceVlanResponse;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.network.EndpointDeviceInterfaceResponse;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.network.EndpointDeviceResponse;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.network.EndpointNetworkAttachmentResponse;
@@ -13,6 +14,7 @@ import ru.krizhanovskiy.admin.panel.backend.api.dto.network.NetworkDeviceRespons
 import ru.krizhanovskiy.admin.panel.backend.api.dto.network.TrunkAllowedVlanResponse;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.network.VlanResponse;
 import ru.krizhanovskiy.admin.panel.backend.domain.DeviceInterface;
+import ru.krizhanovskiy.admin.panel.backend.domain.DeviceVlan;
 import ru.krizhanovskiy.admin.panel.backend.domain.EndpointDevice;
 import ru.krizhanovskiy.admin.panel.backend.domain.EndpointDeviceInterface;
 import ru.krizhanovskiy.admin.panel.backend.domain.EndpointNetworkAttachment;
@@ -30,8 +32,13 @@ public interface NetworkEntityMapper {
     VlanResponse toVlanResponse(Vlan entity);
 
     @Mapping(target = "deviceId", source = "device.id")
+    @Mapping(target = "vlanId", source = "id.vlanId")
+    DeviceVlanResponse toDeviceVlanResponse(DeviceVlan entity);
+
+    @Mapping(target = "deviceId", source = "device.id")
     @Mapping(target = "parentInterfaceId", source = "parentInterface.id")
     @Mapping(target = "dot1qVlanId", source = "dot1qVlan.vlanId")
+    @Mapping(target = "vlanBinding", ignore = true)
     DeviceInterfaceResponse toDeviceInterfaceResponse(DeviceInterface entity);
 
     @Mapping(target = "interfaceAId", source = "interfaceA.id")

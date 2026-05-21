@@ -21,6 +21,10 @@ export type DevicePortHandle = {
    * Без линка — по умолчанию снизу.
    */
   edge: PortEdge
+  /** Кратко: access/trunk и VLAN (только физ. порты с L2 в модели) */
+  vlanCaption?: string | null
+  /** Доп. строка для title у handle/cap */
+  vlanTooltip?: string | null
 }
 
 export type DeviceNodeData = Record<string, unknown> & {
@@ -37,6 +41,36 @@ function typeLabel(t: string): string {
   if (t === 'ROUTER') return 'Маршрутизатор'
   if (t === 'SWITCH') return 'Коммутатор'
   return t
+}
+
+function portHoverTitle(p: DevicePortHandle): string {
+  const base = `${p.name} (${p.adminStatus === 'UP' ? 'UP' : 'DOWN'})`
+  return p.vlanTooltip ? `${base} · ${p.vlanTooltip}` : base
+}
+
+function PortNameBlock(props: {
+  p: DevicePortHandle
+  nameClass: string
+  stackClass: string
+}) {
+  const { p, nameClass, stackClass } = props
+  if (!p.vlanCaption) {
+    return (
+      <span className={nameClass} title={p.name}>
+        {p.name}
+      </span>
+    )
+  }
+  return (
+    <span className={stackClass}>
+      <span className={nameClass} title={p.name}>
+        {p.name}
+      </span>
+      <span className="device-node__port-vlan" title={p.vlanTooltip ?? p.vlanCaption}>
+        {p.vlanCaption}
+      </span>
+    </span>
+  )
 }
 
 /** Позиция вдоль верхнего/нижнего ребра (0..100 %). */
@@ -136,16 +170,18 @@ export const DeviceNode = memo(function DeviceNode({
                   isConnectable={connectable}
                   className={`device-node__handle device-node__handle--top device-node__handle--${p.adminStatus.toLowerCase()}`}
                   style={{ left: `${x}%` }}
-                  title={`${p.name} (${p.adminStatus === 'UP' ? 'UP' : 'DOWN'})`}
+                  title={portHoverTitle(p)}
                 />
                 <div
                   className={`device-node__port-cap device-node__port-cap--top${p.free ? '' : ' device-node__port-cap--busy'}`}
                   style={{ left: `${x}%` }}
-                  title={p.name}
+                  title={portHoverTitle(p)}
                 >
-                  <span className="device-node__port-label device-node__port-label--vertical">
-                    {p.name}
-                  </span>
+                  <PortNameBlock
+                    p={p}
+                    nameClass="device-node__port-label device-node__port-label--vertical"
+                    stackClass="device-node__port-label-stack device-node__port-label-stack--vertical"
+                  />
                 </div>
               </Fragment>
             )
@@ -168,16 +204,18 @@ export const DeviceNode = memo(function DeviceNode({
                     isConnectable={connectable}
                     className={`device-node__handle device-node__handle--left device-node__handle--${p.adminStatus.toLowerCase()}`}
                     style={{ top: `${y}%` }}
-                    title={`${p.name} (${p.adminStatus === 'UP' ? 'UP' : 'DOWN'})`}
+                    title={portHoverTitle(p)}
                   />
                   <div
                     className={`device-node__port-cap device-node__port-cap--left${p.free ? '' : ' device-node__port-cap--busy'}`}
                     style={{ top: `${y}%` }}
-                    title={p.name}
+                    title={portHoverTitle(p)}
                   >
-                    <span className="device-node__port-label device-node__port-label--side">
-                      {p.name}
-                    </span>
+                    <PortNameBlock
+                      p={p}
+                      nameClass="device-node__port-label device-node__port-label--side"
+                      stackClass="device-node__port-label-stack device-node__port-label-stack--side"
+                    />
                   </div>
                 </Fragment>
               )
@@ -208,11 +246,13 @@ export const DeviceNode = memo(function DeviceNode({
                   <div
                     className={`device-node__port-cap device-node__port-cap--right${p.free ? '' : ' device-node__port-cap--busy'}`}
                     style={{ top: `${y}%` }}
-                    title={p.name}
+                    title={portHoverTitle(p)}
                   >
-                    <span className="device-node__port-label device-node__port-label--side">
-                      {p.name}
-                    </span>
+                    <PortNameBlock
+                      p={p}
+                      nameClass="device-node__port-label device-node__port-label--side"
+                      stackClass="device-node__port-label-stack device-node__port-label-stack--side"
+                    />
                   </div>
                   <Handle
                     type="source"
@@ -221,7 +261,7 @@ export const DeviceNode = memo(function DeviceNode({
                     isConnectable={connectable}
                     className={`device-node__handle device-node__handle--right device-node__handle--${p.adminStatus.toLowerCase()}`}
                     style={{ top: `${y}%` }}
-                    title={`${p.name} (${p.adminStatus === 'UP' ? 'UP' : 'DOWN'})`}
+                    title={portHoverTitle(p)}
                   />
                 </Fragment>
               )
@@ -240,11 +280,13 @@ export const DeviceNode = memo(function DeviceNode({
                 <div
                   className={`device-node__port-cap device-node__port-cap--bottom${p.free ? '' : ' device-node__port-cap--busy'}`}
                   style={{ left: `${x}%` }}
-                  title={p.name}
+                  title={portHoverTitle(p)}
                 >
-                  <span className="device-node__port-label device-node__port-label--vertical">
-                    {p.name}
-                  </span>
+                  <PortNameBlock
+                    p={p}
+                    nameClass="device-node__port-label device-node__port-label--vertical"
+                    stackClass="device-node__port-label-stack device-node__port-label-stack--vertical"
+                  />
                 </div>
                 <Handle
                   type="source"
@@ -253,7 +295,7 @@ export const DeviceNode = memo(function DeviceNode({
                   isConnectable={connectable}
                   className={`device-node__handle device-node__handle--bottom device-node__handle--${p.adminStatus.toLowerCase()}`}
                   style={{ left: `${x}%` }}
-                  title={`${p.name} (${p.adminStatus === 'UP' ? 'UP' : 'DOWN'})`}
+                  title={portHoverTitle(p)}
                 />
               </Fragment>
             )

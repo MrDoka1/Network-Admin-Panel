@@ -18,8 +18,8 @@
 
 .device-modal {
   width: 100%;
-  max-width: 420px;
-  max-height: min(90svh, 640px);
+  max-width: 480px;
+  max-height: min(92svh, 720px);
   overflow: auto;
   border-radius: 12px;
   border: 1px solid var(--border);
@@ -30,7 +30,8 @@
 }
 
 .device-modal--wide {
-  max-width: min(96vw, 880px);
+  max-width: min(98vw, 1120px);
+  max-height: min(92svh, 900px);
 }
 
 .device-modal__header {
@@ -217,6 +218,29 @@
   line-height: 1.35;
   color: var(--text-h);
   word-break: break-word;
+}
+
+.device-modal__ports-l2-cell {
+  min-width: 7.5rem;
+  max-width: 15rem;
+  vertical-align: top;
+  font-size: 13px;
+}
+
+.device-modal__ports-l2-trunk {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.device-modal__ports-select--native {
+  max-width: 100%;
+}
+
+.device-modal__ports-input--trunk-csv {
+  width: 100%;
+  max-width: 14rem;
+  min-width: 7rem;
 }
 
 .device-modal__ports-table tbody tr:last-child td {

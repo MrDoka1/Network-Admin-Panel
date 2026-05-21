@@ -13,6 +13,12 @@ public record ReconfigurationTaskResponse(
         String initiatedBy,
         Instant createdAt,
         ReconfigurationEntityStatus status,
+        @Schema(description = "Время последнего обновления статуса в БД")
+        Instant updatedAt,
+        @Schema(description = "Автор последнего обновления статуса в БД")
+        String updatedBy,
+        @Schema(description = "Описание ошибки или причина отмены из БД")
+        String statusReason,
         List<ReconfigurationBatchView> batches
 ) {
 }
