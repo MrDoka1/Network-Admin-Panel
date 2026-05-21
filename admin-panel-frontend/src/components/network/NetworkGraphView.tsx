@@ -37,7 +37,6 @@ import {
   rootPortVlanTooltip,
 } from '../../utils/portVlanLabels'
 import { DeviceModal } from './DeviceModal'
-import { VlanModal } from './VlanModal'
 import {
   DeviceNode,
   type DeviceFlowNode,
@@ -541,8 +540,6 @@ export const NetworkGraphView = memo(function NetworkGraphView() {
   const [selection, setSelection] = useState<Selection>(null)
   const [deviceModal, setDeviceModal] = useState<DeviceModalState>(null)
   const [linkModal, setLinkModal] = useState<LinkModalState>(null)
-  const [vlanModalOpen, setVlanModalOpen] = useState(false)
-
   const load = useCallback(async (select?: AfterLoadSelection) => {
     setLoading(true)
     setError(null)
@@ -870,13 +867,6 @@ export const NetworkGraphView = memo(function NetworkGraphView() {
           <button
             type="button"
             className="network-graph__btn"
-            onClick={() => setVlanModalOpen(true)}
-          >
-            Добавить VLAN
-          </button>
-          <button
-            type="button"
-            className="network-graph__btn"
             onClick={() => void load()}
             disabled={loading}
           >
@@ -1042,12 +1032,6 @@ export const NetworkGraphView = memo(function NetworkGraphView() {
             setDeviceModal(null)
             void load({ kind: 'device', id: saved.id })
           }}
-        />
-      ) : null}
-      {vlanModalOpen ? (
-        <VlanModal
-          open
-          onClose={() => setVlanModalOpen(false)}
         />
       ) : null}
       {linkModal ? (

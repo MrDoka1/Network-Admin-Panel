@@ -75,10 +75,11 @@ const defaultForm = (): FormState => ({
 })
 
 function formFromDevice(d: NetworkDevice): FormState {
+  const { host } = splitHostAndCidrMask(d.mgmtIp)
   return {
     deviceType: d.deviceType,
     hostname: d.hostname,
-    mgmtIp: d.mgmtIp,
+    mgmtIp: host,
     status: d.status,
   }
 }
@@ -366,13 +367,20 @@ export function DeviceModal({
     async (e: FormEvent) => {
       e.preventDefault()
       setError(null)
+      const mgmtTrim = form.mgmtIp.trim()
+      if (!isValidIpv4Dotted(mgmtTrim)) {
+        setError(
+          'Некорректный IPv4-адрес управления (ожидаются четыре октета 0–255).',
+        )
+        return
+      }
       setSubmitting(true)
       try {
         if (mode === 'create') {
           const created = await createDevice({
             deviceType: form.deviceType,
             hostname: form.hostname.trim(),
-            mgmtIp: form.mgmtIp.trim(),
+            mgmtIp: mgmtTrim,
             status: form.status,
           })
           onSaved(created)
@@ -381,7 +389,7 @@ export function DeviceModal({
           const updated = await updateDevice(device.id, {
             deviceType: form.deviceType,
             hostname: form.hostname.trim(),
-            mgmtIp: form.mgmtIp.trim(),
+            mgmtIp: mgmtTrim,
             status: form.status,
           })
           onSaved(updated)
@@ -734,11 +742,18 @@ export function DeviceModal({
             <input
               id="device-mgmt-ip"
               type="text"
+              inputMode="decimal"
               required
-              maxLength={64}
+              maxLength={15}
+              placeholder="192.168.0.0"
               autoComplete="off"
               value={form.mgmtIp}
-              onChange={(e) => setForm((f) => ({ ...f, mgmtIp: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  mgmtIp: formatIpv4WhileTyping(e.target.value),
+                }))
+              }
               disabled={submitting}
             />
           </div>
@@ -759,6 +774,34 @@ export function DeviceModal({
               <option value="ACTIVE">Активен</option>
               <option value="INACTIVE">Неактивен</option>
             </select>
+          </div>
+
+          {error ? (
+              <p className="device-modal__error" role="alert">
+                {error}
+              </p>
+          ) : null}
+
+          <div className="device-modal__actions">
+            <button
+                type="button"
+                className="device-modal__btn device-modal__btn--secondary"
+                onClick={onClose}
+                disabled={submitting}
+            >
+              Отмена
+            </button>
+            <button
+                type="submit"
+                className="device-modal__btn device-modal__btn--primary"
+                disabled={submitting}
+            >
+              {submitting
+                  ? 'Сохранение…'
+                  : mode === 'create'
+                      ? 'Создать'
+                      : 'Сохранить'}
+            </button>
           </div>
 
           {showPorts ? (
@@ -1363,34 +1406,6 @@ export function DeviceModal({
               </div>
             </section>
           ) : null}
-
-          {error ? (
-            <p className="device-modal__error" role="alert">
-              {error}
-            </p>
-          ) : null}
-
-          <div className="device-modal__actions">
-            <button
-              type="button"
-              className="device-modal__btn device-modal__btn--secondary"
-              onClick={onClose}
-              disabled={submitting}
-            >
-              Отмена
-            </button>
-            <button
-              type="submit"
-              className="device-modal__btn device-modal__btn--primary"
-              disabled={submitting}
-            >
-              {submitting
-                ? 'Сохранение…'
-                : mode === 'create'
-                  ? 'Создать'
-                  : 'Сохранить'}
-            </button>
-          </div>
         </form>
       </div>
     </div>

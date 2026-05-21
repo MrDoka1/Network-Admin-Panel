@@ -5,11 +5,9 @@ import {
   useMemo,
   useRef,
   useState,
-  type FormEvent,
 } from 'react'
 import {
   createDeviceVlan,
-  createVlan,
   deleteDeviceVlan,
   fetchDeviceVlans,
   fetchDevices,
@@ -41,11 +39,6 @@ export const VlanMatrixView = memo(function VlanMatrixView() {
   const [deviceVlans, setDeviceVlans] = useState<DeviceVlan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  const [newVlanId, setNewVlanId] = useState('')
-  const [newVlanName, setNewVlanName] = useState('')
-  const [createBusy, setCreateBusy] = useState(false)
-  const [createError, setCreateError] = useState<string | null>(null)
 
   const [pending, setPending] = useState<VlanMatrixPending | null>(null)
   const [toggling, setToggling] = useState(false)
@@ -164,78 +157,10 @@ export const VlanMatrixView = memo(function VlanMatrixView() {
     [toggling, pending, clearPendingTimer, confirmToggle, schedulePendingReset],
   )
 
-  const submitCreate = useCallback(
-    async (e: FormEvent) => {
-      e.preventDefault()
-      setCreateError(null)
-      const raw = newVlanId.trim()
-      const id = Number(raw)
-      if (raw === '' || !Number.isInteger(id) || id < 1 || id > 4094) {
-        setCreateError('Укажите номер VLAN (VID) от 1 до 4094.')
-        return
-      }
-      setCreateBusy(true)
-      try {
-        const created = await createVlan({
-          vlanId: id,
-          ...(newVlanName.trim() ? { name: newVlanName.trim() } : {}),
-        })
-        setVlans((prev) => sortVlans([...prev, created]))
-        setNewVlanId('')
-        setNewVlanName('')
-      } catch (err) {
-        setCreateError(err instanceof Error ? err.message : String(err))
-      } finally {
-        setCreateBusy(false)
-      }
-    },
-    [newVlanId, newVlanName],
-  )
-
   return (
     <div className="vlan-matrix">
       <header className="vlan-matrix__header">
         <h1>VLAN</h1>
-        <form className="vlan-matrix__create" onSubmit={(e) => void submitCreate(e)}>
-          <div className="vlan-matrix__field">
-            <label htmlFor="vlan-matrix-vid">Номер VLAN</label>
-            <input
-              id="vlan-matrix-vid"
-              type="number"
-              min={1}
-              max={4094}
-              step={1}
-              inputMode="numeric"
-              value={newVlanId}
-              onChange={(e) => setNewVlanId(e.target.value)}
-              disabled={createBusy}
-              placeholder="1–4094"
-            />
-          </div>
-          <div className="vlan-matrix__field">
-            <label htmlFor="vlan-matrix-name">Имя (опционально)</label>
-            <input
-              id="vlan-matrix-name"
-              type="text"
-              maxLength={256}
-              value={newVlanName}
-              onChange={(e) => setNewVlanName(e.target.value)}
-              disabled={createBusy}
-            />
-          </div>
-          <button
-            type="submit"
-            className="vlan-matrix__btn vlan-matrix__btn--primary"
-            disabled={createBusy}
-          >
-            {createBusy ? 'Создание…' : 'Создать VLAN'}
-          </button>
-          {createError ? (
-            <p className="vlan-matrix__error" role="alert">
-              {createError}
-            </p>
-          ) : null}
-        </form>
         {toggleError ? (
           <p className="vlan-matrix__error" role="alert">
             {toggleError}
@@ -250,9 +175,7 @@ export const VlanMatrixView = memo(function VlanMatrixView() {
           {error}
         </p>
       ) : sortedVlans.length === 0 ? (
-        <p className="vlan-matrix__empty">
-          Нет глобальных VLAN. Создайте VLAN выше — появится колонка в таблице.
-        </p>
+        <p className="vlan-matrix__empty">Нет глобальных VLAN.</p>
       ) : sortedDevices.length === 0 ? (
         <p className="vlan-matrix__empty">
           Нет сетевых устройств. Добавьте устройства на вкладке «Топология».

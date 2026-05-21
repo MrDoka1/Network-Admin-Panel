@@ -17,71 +17,8 @@
 
 .vlan-matrix__header h1 {
   margin: 0;
-  width: 100%;
   font-size: 22px;
   letter-spacing: -0.02em;
-}
-
-.vlan-matrix__create {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 10px 14px;
-}
-
-.vlan-matrix__field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 13px;
-  color: var(--text);
-}
-
-.vlan-matrix__field label {
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-.vlan-matrix__field input {
-  font: inherit;
-  font-size: 14px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text-h);
-  min-width: 120px;
-}
-
-.vlan-matrix__field input[type='number'] {
-  width: 100px;
-}
-
-.vlan-matrix__btn {
-  font: inherit;
-  font-size: 14px;
-  padding: 8px 14px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--code-bg);
-  color: var(--text-h);
-  cursor: pointer;
-}
-
-.vlan-matrix__btn:hover:not(:disabled) {
-  border-color: var(--accent-border);
-  box-shadow: var(--shadow);
-}
-
-.vlan-matrix__btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.vlan-matrix__btn--primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
 }
 
 .vlan-matrix__error {
