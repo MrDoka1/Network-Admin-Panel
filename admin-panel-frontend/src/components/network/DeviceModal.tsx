@@ -238,6 +238,8 @@ type Props = {
   onPortsChanged?: () => void
   /** Для отображения второго конца линка в списке портов */
   linkContext?: DeviceModalLinkContext
+  /** При создании — зафиксировать тип (вкладки маршрутизаторов / коммутаторов) */
+  fixedDeviceType?: DeviceType
 }
 
 export function DeviceModal({
@@ -248,6 +250,7 @@ export function DeviceModal({
   onSaved,
   onPortsChanged,
   linkContext,
+  fixedDeviceType,
 }: Props) {
   const titleId = useId()
   const portsSectionId = useId()
@@ -323,9 +326,12 @@ export function DeviceModal({
     if (mode === 'edit' && device) {
       setForm(formFromDevice(device))
     } else {
-      setForm(defaultForm())
+      const base = defaultForm()
+      setForm(
+        fixedDeviceType ? { ...base, deviceType: fixedDeviceType } : base,
+      )
     }
-  }, [open, mode, device])
+  }, [open, mode, device, fixedDeviceType])
 
   useEffect(() => {
     if (!open || mode !== 'edit' || !device) {
@@ -714,7 +720,9 @@ export function DeviceModal({
                   deviceType: e.target.value as DeviceType,
                 }))
               }
-              disabled={submitting}
+              disabled={
+                submitting || (mode === 'create' && fixedDeviceType != null)
+              }
             >
               <option value="SWITCH">Коммутатор</option>
               <option value="ROUTER">Маршрутизатор</option>

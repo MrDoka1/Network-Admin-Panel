@@ -2,12 +2,22 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authLogout } from './api/authClient'
 import { EndpointInventoryView } from './components/endpoint/EndpointInventoryView'
+import {
+  RouterInventoryView,
+  SwitchInventoryView,
+} from './components/network/NetworkDeviceInventoryView'
 import { NetworkGraphView } from './components/network/NetworkGraphView'
 import { ReconfigurationTasksView } from './components/reconfig/ReconfigurationTasksView'
 import { VlanMatrixView } from './components/vlan/VlanMatrixView'
 import './App.css'
 
-type Tab = 'topology' | 'vlans' | 'endpoints' | 'reconfigTasks'
+type Tab =
+  | 'topology'
+  | 'routers'
+  | 'switches'
+  | 'vlans'
+  | 'endpoints'
+  | 'reconfigTasks'
 
 function App() {
   const navigate = useNavigate()
@@ -37,6 +47,28 @@ function App() {
           onClick={() => setTab('topology')}
         >
           Топология
+        </button>
+        <button
+          type="button"
+          className={
+            tab === 'routers'
+              ? 'app-shell__tab app-shell__tab--active'
+              : 'app-shell__tab'
+          }
+          onClick={() => setTab('routers')}
+        >
+          Маршрутизаторы
+        </button>
+        <button
+          type="button"
+          className={
+            tab === 'switches'
+              ? 'app-shell__tab app-shell__tab--active'
+              : 'app-shell__tab'
+          }
+          onClick={() => setTab('switches')}
+        >
+          Коммутаторы
         </button>
         <button
           type="button"
@@ -83,6 +115,8 @@ function App() {
       </nav>
       <main className="app-shell__main">
         {tab === 'topology' ? <NetworkGraphView /> : null}
+        {tab === 'routers' ? <RouterInventoryView /> : null}
+        {tab === 'switches' ? <SwitchInventoryView /> : null}
         {tab === 'vlans' ? <VlanMatrixView /> : null}
         {tab === 'endpoints' ? <EndpointInventoryView /> : null}
         {tab === 'reconfigTasks' ? <ReconfigurationTasksView /> : null}

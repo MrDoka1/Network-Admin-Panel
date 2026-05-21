@@ -272,6 +272,14 @@ export async function createLink(payload: LinkCreatePayload): Promise<Link> {
   return parseJson<Link>(res)
 }
 
+export async function deleteLink(id: string): Promise<void> {
+  const res = await apiFetch(`/api/v1/network/links/${id}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `${res.status} ${res.statusText}`)
+  }
+}
+
 export async function loadNetworkTopology(): Promise<{
   devices: NetworkDevice[]
   interfaces: DeviceInterface[]
