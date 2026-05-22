@@ -176,6 +176,18 @@ function formatWhen(iso: string): string {
   })
 }
 
+function vlanIdFromSwitchPortState(state: unknown): number | null {
+  if (
+    state != null &&
+    typeof state === 'object' &&
+    'vlanId' in state &&
+    typeof (state as { vlanId: unknown }).vlanId === 'number'
+  ) {
+    return (state as { vlanId: number }).vlanId
+  }
+  return null
+}
+
 function describeAction(a: ReconfigurationVlanAction): string {
   const p = a.params ?? {}
   switch (a.actionType) {
@@ -208,13 +220,45 @@ function describeAction(a: ReconfigurationVlanAction): string {
     }
     case 'SWITCH_VLAN': {
       const port = typeof p.port === 'string' ? p.port : '?'
-      const target =
-        typeof p.targetVlanId === 'number' ? p.targetVlanId : '?'
-      return `порт ${port} → VLAN ${target}`
+      const fromVlan = vlanIdFromSwitchPortState(a.previousState)
+      const toVlan =
+        typeof p.targetVlanId === 'number'
+          ? p.targetVlanId
+          : vlanIdFromSwitchPortState(a.targetState)
+      const from = fromVlan != null ? String(fromVlan) : '?'
+      const to = toVlan != null ? String(toVlan) : '?'
+      return `порт ${port} VLAN ${from} → VLAN ${to}`
     }
     default:
       return ''
   }
+}
+
+function taskStats(task: ReconfigurationTask): {
+  batchCount: number
+  actionCount: number
+} {
+  const batchCount = task.batches.length
+  const actionCount = task.batches.reduce((n, b) => n + b.actions.length, 0)
+  return { batchCount, actionCount }
+}
+
+function taskCollapsedSummary(task: ReconfigurationTask): string {
+  const { batchCount, actionCount } = taskStats(task)
+  const batchWord =
+    batchCount === 1 ? 'пакет' : batchCount < 5 ? 'пакета' : 'пакетов'
+  const actionWord =
+    actionCount === 1 ? 'действие' : actionCount < 5 ? 'действия' : 'действий'
+  const previews = task.batches
+    .flatMap((b) => b.actions)
+    .slice(0, 2)
+    .map((a) => describeAction(a))
+    .filter(Boolean)
+  const preview =
+    previews.length > 0
+      ? ` · ${previews.join('; ')}${actionCount > 2 ? '…' : ''}`
+      : ''
+  return `${batchCount} ${batchWord}, ${actionCount} ${actionWord}${preview}`
 }
 
 function sortTasksNewestFirst(tasks: ReconfigurationTask[]): ReconfigurationTask[] {
@@ -258,6 +302,9 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
   const [error, setError] = useState<string | null>(null)
   const [actionTaskId, setActionTaskId] = useState<string | null>(null)
   const [showCompleted, setShowCompleted] = useState(false)
+  const [collapsedTaskIds, setCollapsedTaskIds] = useState<Set<string>>(
+    () => new Set(),
+  )
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -319,6 +366,27 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
     },
     [mergeTaskUpdate],
   )
+
+  const toggleTaskCollapsed = useCallback((taskId: string) => {
+    setCollapsedTaskIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(taskId)) next.delete(taskId)
+      else next.add(taskId)
+      return next
+    })
+  }, [])
+
+  const collapseAllVisible = useCallback(() => {
+    setCollapsedTaskIds(new Set(visibleTasks.map((t) => t.id)))
+  }, [visibleTasks])
+
+  const expandAllVisible = useCallback(() => {
+    setCollapsedTaskIds((prev) => {
+      const next = new Set(prev)
+      for (const t of visibleTasks) next.delete(t.id)
+      return next
+    })
+  }, [visibleTasks])
 
   const handleConfirm = useCallback(
     async (taskId: string) => {
@@ -400,6 +468,24 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
                 />
                 <span>Показывать завершённые</span>
               </label>
+              {visibleTasks.length > 0 ? (
+                <>
+                  <button
+                    type="button"
+                    className="reconfig-tasks__btn"
+                    onClick={expandAllVisible}
+                  >
+                    Развернуть все
+                  </button>
+                  <button
+                    type="button"
+                    className="reconfig-tasks__btn"
+                    onClick={collapseAllVisible}
+                  >
+                    Свернуть все
+                  </button>
+                </>
+              ) : null}
               <button
                 type="button"
                 className="reconfig-tasks__btn reconfig-tasks__btn--primary"
@@ -442,9 +528,35 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
           {loading && sorted.length === 0 ? (
             <div className="reconfig-tasks__empty">Загрузка списка…</div>
           ) : null}
-          {visibleTasks.map((task) => (
-            <article key={task.id} className="reconfig-card">
+          {visibleTasks.map((task) => {
+            const collapsed = collapsedTaskIds.has(task.id)
+            return (
+            <article
+              key={task.id}
+              className={
+                collapsed
+                  ? 'reconfig-card reconfig-card--collapsed'
+                  : 'reconfig-card'
+              }
+            >
               <div className="reconfig-card__head">
+                <button
+                  type="button"
+                  className="reconfig-card__toggle"
+                  aria-expanded={!collapsed}
+                  aria-controls={`reconfig-card-body-${task.id}`}
+                  title={collapsed ? 'Развернуть задачу' : 'Свернуть задачу'}
+                  onClick={() => toggleTaskCollapsed(task.id)}
+                >
+                  <span
+                    className={
+                      collapsed
+                        ? 'reconfig-card__chevron reconfig-card__chevron--collapsed'
+                        : 'reconfig-card__chevron'
+                    }
+                    aria-hidden
+                  />
+                </button>
                 <div className="reconfig-card__meta">
                   <span className={pillClassForEntity(task.status)}>
                     {entityStatusLabel(task.status)}
@@ -504,12 +616,21 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
                   {task.id}
                 </span>
               </div>
+              {collapsed ? (
+                <p className="reconfig-card__summary">
+                  {taskCollapsedSummary(task)}
+                </p>
+              ) : null}
               {task.statusReason ? (
                 <p className="reconfig-card__status-reason" role="note">
                   {task.statusReason}
                 </p>
               ) : null}
-              <div className="reconfig-card__body">
+              <div
+                id={`reconfig-card-body-${task.id}`}
+                className="reconfig-card__body"
+                hidden={collapsed}
+              >
                 {task.batches.map((batch, idx) => (
                   <div
                     key={batch.id}
@@ -582,7 +703,8 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
                 ))}
               </div>
             </article>
-          ))}
+            )
+          })}
         </div>
       ) : null}
     </section>

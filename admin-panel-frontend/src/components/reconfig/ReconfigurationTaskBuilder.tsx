@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { v4 as uuidv4 } from 'uuid'
 import { createReconfigurationTask } from '../../api/reconfigurationClient'
 import {
   fetchDevices,
@@ -139,7 +140,7 @@ type DraftAction =
     }
 
 function newId(): string {
-  return crypto.randomUUID()
+  return uuidv4()
 }
 
 function emptyBatch(criticality: BatchCriticality): DraftBatch {
