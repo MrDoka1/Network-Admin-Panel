@@ -6,6 +6,7 @@
 
 .app-shell__nav {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
   padding: 10px 16px;

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { authLogout } from './api/authClient'
 import { EndpointInventoryView } from './components/endpoint/EndpointInventoryView'
 import {
@@ -9,20 +9,27 @@ import {
 import { NetworkGraphView } from './components/network/NetworkGraphView'
 import { ReconfigurationTasksView } from './components/reconfig/ReconfigurationTasksView'
 import { VlanMatrixView } from './components/vlan/VlanMatrixView'
+import { TAB_PATH, tabFromPathname, type AppTab } from './routes'
 import './App.css'
-
-type Tab =
-  | 'topology'
-  | 'routers'
-  | 'switches'
-  | 'vlans'
-  | 'endpoints'
-  | 'reconfigTasks'
 
 function App() {
   const navigate = useNavigate()
-  const [tab, setTab] = useState<Tab>('topology')
+  const { pathname } = useLocation()
+  const tab = tabFromPathname(pathname)
   const [logoutBusy, setLogoutBusy] = useState(false)
+
+  useEffect(() => {
+    if (tab === null) {
+      navigate('/', { replace: true })
+    }
+  }, [tab, navigate])
+
+  function selectTab(next: AppTab) {
+    const path = TAB_PATH[next]
+    if (pathname !== path) {
+      navigate(path)
+    }
+  }
 
   async function handleLogout() {
     setLogoutBusy(true)
@@ -32,6 +39,10 @@ function App() {
     } finally {
       setLogoutBusy(false)
     }
+  }
+
+  if (tab === null) {
+    return null
   }
 
   return (
@@ -44,7 +55,7 @@ function App() {
               ? 'app-shell__tab app-shell__tab--active'
               : 'app-shell__tab'
           }
-          onClick={() => setTab('topology')}
+          onClick={() => selectTab('topology')}
         >
           Топология
         </button>
@@ -55,7 +66,7 @@ function App() {
               ? 'app-shell__tab app-shell__tab--active'
               : 'app-shell__tab'
           }
-          onClick={() => setTab('routers')}
+          onClick={() => selectTab('routers')}
         >
           Маршрутизаторы
         </button>
@@ -66,7 +77,7 @@ function App() {
               ? 'app-shell__tab app-shell__tab--active'
               : 'app-shell__tab'
           }
-          onClick={() => setTab('switches')}
+          onClick={() => selectTab('switches')}
         >
           Коммутаторы
         </button>
@@ -77,7 +88,7 @@ function App() {
               ? 'app-shell__tab app-shell__tab--active'
               : 'app-shell__tab'
           }
-          onClick={() => setTab('vlans')}
+          onClick={() => selectTab('vlans')}
         >
           VLAN
         </button>
@@ -88,7 +99,7 @@ function App() {
               ? 'app-shell__tab app-shell__tab--active'
               : 'app-shell__tab'
           }
-          onClick={() => setTab('endpoints')}
+          onClick={() => selectTab('endpoints')}
         >
           Оконечные устройства
         </button>
@@ -99,7 +110,7 @@ function App() {
               ? 'app-shell__tab app-shell__tab--active'
               : 'app-shell__tab'
           }
-          onClick={() => setTab('reconfigTasks')}
+          onClick={() => selectTab('reconfigTasks')}
         >
           Реконфигурационные таски
         </button>

@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchDevices } from '../../api/networkClient'
 import {
   cancelReconfigurationTask,
@@ -14,6 +15,11 @@ import type {
   ReconfigurationTask,
   ReconfigurationVlanAction,
 } from '../../types/reconfiguration'
+import {
+  reconfigSectionFromPathname,
+  reconfigSectionPath,
+  TAB_PATH,
+} from '../../routes'
 import './ReconfigurationTasksView.css'
 
 const COMPLETED_TASK_STATUSES: ReadonlySet<ReconfigurationEntityStatus> = new Set([
@@ -229,10 +235,23 @@ function networkDeviceTooltip(
   return `${d.hostname} (${d.mgmtIp})\n${deviceId}`
 }
 
-type ReconfigSection = 'list' | 'create'
-
 export const ReconfigurationTasksView = memo(function ReconfigurationTasksView() {
-  const [section, setSection] = useState<ReconfigSection>('list')
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
+  const section = reconfigSectionFromPathname(pathname)
+
+  useEffect(() => {
+    if (section === null && pathname.startsWith(TAB_PATH.reconfigTasks)) {
+      navigate(TAB_PATH.reconfigTasks, { replace: true })
+    }
+  }, [section, pathname, navigate])
+
+  function selectSection(next: 'list' | 'create') {
+    const path = reconfigSectionPath(next)
+    if (pathname !== path) {
+      navigate(path)
+    }
+  }
   const [tasks, setTasks] = useState<ReconfigurationTask[]>([])
   const [networkDevices, setNetworkDevices] = useState<NetworkDevice[]>([])
   const [loading, setLoading] = useState(true)
@@ -318,6 +337,10 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
     [mergeTaskUpdate],
   )
 
+  if (section === null) {
+    return null
+  }
+
   return (
     <section className="reconfig-tasks" aria-labelledby="reconfig-tasks-heading">
       <header className="reconfig-tasks__header">
@@ -348,7 +371,7 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
                 ? 'reconfig-tasks__subtab reconfig-tasks__subtab--active'
                 : 'reconfig-tasks__subtab'
             }
-            onClick={() => setSection('list')}
+            onClick={() => selectSection('list')}
           >
             Список из Kafka
           </button>
@@ -361,7 +384,7 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
                 ? 'reconfig-tasks__subtab reconfig-tasks__subtab--active'
                 : 'reconfig-tasks__subtab'
             }
-            onClick={() => setSection('create')}
+            onClick={() => selectSection('create')}
           >
             Создать задачу
           </button>
@@ -391,7 +414,7 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
       </header>
       {section === 'create' ? (
         <ReconfigurationTaskBuilder
-          onCancel={() => setSection('list')}
+          onCancel={() => selectSection('list')}
           onCreated={() => void load()}
         />
       ) : null}

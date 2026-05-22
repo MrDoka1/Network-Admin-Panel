@@ -1,4 +1,4 @@
-.endpoint-inv {
+.net-inv {
   display: flex;
   flex-direction: column;
   min-height: 100svh;
@@ -6,7 +6,7 @@
   box-sizing: border-box;
 }
 
-.endpoint-inv__header {
+.net-inv__header {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
@@ -16,14 +16,14 @@
   flex-shrink: 0;
 }
 
-.endpoint-inv__title-block h1 {
+.net-inv__title-block h1 {
   margin: 0 0 6px;
   font-size: 22px;
   letter-spacing: -0.02em;
   color: var(--text-h);
 }
 
-.endpoint-inv__subtitle {
+.net-inv__subtitle {
   margin: 0;
   font-size: 14px;
   color: var(--text);
@@ -31,14 +31,14 @@
   line-height: 1.45;
 }
 
-.endpoint-inv__stats {
+.net-inv__stats {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   width: 100%;
 }
 
-.endpoint-inv__stat {
+.net-inv__stat {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -49,7 +49,7 @@
   background: var(--code-bg);
 }
 
-.endpoint-inv__stat-value {
+.net-inv__stat-value {
   font-size: 20px;
   font-weight: 600;
   line-height: 1.1;
@@ -57,12 +57,12 @@
   font-variant-numeric: tabular-nums;
 }
 
-.endpoint-inv__stat-label {
+.net-inv__stat-label {
   font-size: 12px;
   color: var(--text);
 }
 
-.endpoint-inv__actions {
+.net-inv__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -70,7 +70,7 @@
   align-items: center;
 }
 
-.endpoint-inv__btn {
+.net-inv__btn {
   font: inherit;
   font-size: 14px;
   padding: 8px 14px;
@@ -81,48 +81,27 @@
   cursor: pointer;
 }
 
-.endpoint-inv__btn:hover:not(:disabled) {
+.net-inv__btn:hover:not(:disabled) {
   border-color: var(--accent-border);
   box-shadow: var(--shadow);
 }
 
-.endpoint-inv__btn:disabled {
+.net-inv__btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
-.endpoint-inv__btn--primary {
+.net-inv__btn--primary {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
 }
 
-.endpoint-inv__btn--primary:hover:not(:disabled) {
+.net-inv__btn--primary:hover:not(:disabled) {
   filter: brightness(1.05);
 }
 
-.endpoint-inv__btn--danger {
-  border-color: #b91c1c;
-  color: #b91c1c;
-  background: transparent;
-}
-
-.endpoint-inv__btn--danger:hover:not(:disabled) {
-  background: rgba(185, 28, 28, 0.08);
-}
-
-@media (prefers-color-scheme: dark) {
-  .endpoint-inv__btn--danger {
-    border-color: #fca5a5;
-    color: #fca5a5;
-  }
-
-  .endpoint-inv__btn--danger:hover:not(:disabled) {
-    background: rgba(252, 165, 165, 0.1);
-  }
-}
-
-.endpoint-inv__error {
+.net-inv__error {
   margin: 0;
   width: 100%;
   font-size: 14px;
@@ -130,12 +109,12 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .endpoint-inv__error {
+  .net-inv__error {
     color: #fca5a5;
   }
 }
 
-.endpoint-inv__toolbar {
+.net-inv__toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -145,7 +124,7 @@
   flex-shrink: 0;
 }
 
-.endpoint-inv__subtabs {
+.net-inv__subtabs {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -156,7 +135,7 @@
   background: var(--code-bg);
 }
 
-.endpoint-inv__subtab {
+.net-inv__subtab {
   font: inherit;
   font-size: 13px;
   padding: 7px 12px;
@@ -170,19 +149,19 @@
   gap: 8px;
 }
 
-.endpoint-inv__subtab:hover {
+.net-inv__subtab:hover {
   color: var(--text-h);
   background: var(--bg);
 }
 
-.endpoint-inv__subtab--active {
+.net-inv__subtab--active {
   background: var(--bg);
   border-color: var(--accent-border);
   color: var(--text-h);
   font-weight: 600;
 }
 
-.endpoint-inv__subtab-count {
+.net-inv__subtab-count {
   font-size: 11px;
   font-weight: 600;
   padding: 1px 6px;
@@ -192,7 +171,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.endpoint-inv__search {
+.net-inv__search {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -201,11 +180,11 @@
   color: var(--text);
 }
 
-.endpoint-inv__search-label {
+.net-inv__search-label {
   flex-shrink: 0;
 }
 
-.endpoint-inv__search input {
+.net-inv__search input {
   font: inherit;
   font-size: 14px;
   padding: 7px 12px;
@@ -216,45 +195,50 @@
   color: var(--text-h);
 }
 
-.endpoint-inv__search input:focus {
+.net-inv__search input:focus {
   outline: 2px solid var(--accent-border);
   outline-offset: 1px;
 }
 
-.endpoint-inv__body {
+.net-inv__body {
   flex: 1;
   min-height: 0;
   overflow: auto;
   padding: 16px 20px 24px;
 }
 
-.endpoint-inv__placeholder,
-.endpoint-inv__muted {
+.net-inv__placeholder,
+.net-inv__muted {
   margin: 0;
   font-size: 14px;
   color: var(--text);
 }
 
-.endpoint-inv__empty {
+.net-inv__muted-inline {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.net-inv__empty {
   max-width: 28rem;
   padding: 32px 0;
 }
 
-.endpoint-inv__empty-title {
+.net-inv__empty-title {
   margin: 0 0 8px;
   font-size: 17px;
   font-weight: 600;
   color: var(--text-h);
 }
 
-.endpoint-inv__empty-text {
+.net-inv__empty-text {
   margin: 0 0 16px;
   font-size: 14px;
   line-height: 1.5;
   color: var(--text);
 }
 
-.endpoint-inv__split {
+.net-inv__split {
   display: grid;
   grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
   gap: 16px;
@@ -263,22 +247,18 @@
 }
 
 @media (max-width: 860px) {
-  .endpoint-inv__split {
+  .net-inv__split {
     grid-template-columns: 1fr;
   }
 }
 
-.endpoint-inv__list {
-  min-width: 0;
-}
-
-.endpoint-inv__list-empty {
+.net-inv__list-empty {
   margin: 0 0 12px;
   font-size: 13px;
   color: var(--text);
 }
 
-.endpoint-inv__cards {
+.net-inv__cards {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -287,7 +267,7 @@
   gap: 8px;
 }
 
-.endpoint-inv__card {
+.net-inv__card {
   width: 100%;
   text-align: left;
   font: inherit;
@@ -306,30 +286,52 @@
     box-shadow 0.15s;
 }
 
-.endpoint-inv__card:hover {
+.net-inv__card--router {
+  border-left: 3px solid rgba(217, 119, 6, 0.85);
+}
+
+.net-inv__card--switch {
+  border-left: 3px solid rgba(37, 99, 235, 0.85);
+}
+
+.net-inv__card:hover {
   border-color: var(--accent-border);
   box-shadow: var(--shadow);
 }
 
-.endpoint-inv__card--selected {
+.net-inv__card--selected {
   border-color: var(--accent);
   background: var(--accent-bg);
   box-shadow: var(--shadow);
 }
 
-.endpoint-inv__card-host {
+.net-inv--router .net-inv__card--selected {
+  border-left-color: rgba(217, 119, 6, 0.95);
+}
+
+.net-inv--switch .net-inv__card--selected {
+  border-left-color: rgba(37, 99, 235, 0.95);
+}
+
+.net-inv__card-host {
   font-size: 15px;
   font-weight: 600;
   line-height: 1.2;
   word-break: break-word;
 }
 
-.endpoint-inv__card-meta {
+.net-inv__card-ip {
+  font-family: var(--mono);
   font-size: 12px;
   color: var(--text);
 }
 
-.endpoint-inv__detail {
+.net-inv__card-meta {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.net-inv__detail {
   min-width: 0;
   padding: 16px 18px;
   border-radius: 12px;
@@ -337,7 +339,7 @@
   background: var(--code-bg);
 }
 
-.endpoint-inv__detail-head {
+.net-inv__detail-head {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
@@ -348,14 +350,14 @@
   border-bottom: 1px solid var(--border);
 }
 
-.endpoint-inv__detail-title {
+.net-inv__detail-title {
   margin: 0 0 6px;
   font-size: 20px;
   letter-spacing: -0.02em;
   color: var(--text-h);
 }
 
-.endpoint-inv__detail-sub {
+.net-inv__detail-sub {
   margin: 0;
   font-size: 13px;
   color: var(--text);
@@ -365,21 +367,50 @@
   gap: 6px;
 }
 
-.endpoint-inv__detail-sub-sep {
+.net-inv__detail-sub-sep {
   opacity: 0.5;
 }
 
-.endpoint-inv__detail-actions {
+.net-inv__type-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.net-inv--router .net-inv__type-badge {
+  color: #b45309;
+}
+
+.net-inv--switch .net-inv__type-badge {
+  color: #1d4ed8;
+}
+
+@media (prefers-color-scheme: dark) {
+  .net-inv--router .net-inv__type-badge {
+    color: #fbbf24;
+  }
+
+  .net-inv--switch .net-inv__type-badge {
+    color: #93c5fd;
+  }
+}
+
+.net-inv__mgmt-ip {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.net-inv__detail-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.endpoint-inv__detail-block + .endpoint-inv__detail-block {
+.net-inv__detail-block + .net-inv__detail-block {
   margin-top: 20px;
 }
 
-.endpoint-inv__block-title {
+.net-inv__block-title {
   margin: 0 0 10px;
   font-size: 14px;
   font-weight: 600;
@@ -388,27 +419,27 @@
   letter-spacing: 0.04em;
 }
 
-.endpoint-inv__table-wrap {
+.net-inv__table-wrap {
   overflow: auto;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--bg);
 }
 
-.endpoint-inv__table {
+.net-inv__table {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
 }
 
-.endpoint-inv__table th,
-.endpoint-inv__table td {
+.net-inv__table th,
+.net-inv__table td {
   padding: 9px 12px;
   text-align: left;
   border-bottom: 1px solid var(--border);
 }
 
-.endpoint-inv__table th {
+.net-inv__table th {
   font-weight: 600;
   font-size: 11px;
   color: var(--text);
@@ -417,27 +448,36 @@
   background: var(--code-bg);
 }
 
-.endpoint-inv__table tbody tr:last-child td {
+.net-inv__table tbody tr:last-child td {
   border-bottom: none;
 }
 
-.endpoint-inv__mac {
-  font-family: var(--mono);
-  font-size: 12px;
+.net-inv__row--sub td {
+  background: var(--social-bg);
 }
 
-.endpoint-inv__linked {
+.net-inv__sub-name {
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.net-inv__l2 {
+  font-size: 12px;
+  max-width: 14rem;
+}
+
+.net-inv__linked {
   color: var(--text-h);
   font-size: 13px;
 }
 
-.endpoint-inv__unlinked {
+.net-inv__unlinked {
   font-size: 13px;
   color: var(--text);
   font-style: italic;
 }
 
-.endpoint-inv__link-list {
+.net-inv__link-list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -446,7 +486,7 @@
   gap: 8px;
 }
 
-.endpoint-inv__link-row {
+.net-inv__link-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -458,27 +498,24 @@
   font-size: 13px;
 }
 
-.endpoint-inv__link-net,
-.endpoint-inv__link-ep {
+.net-inv__link-label {
   color: var(--text-h);
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
 }
 
-.endpoint-inv__link-arrow {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.endpoint-inv__link-actions {
+.net-inv__link-actions {
   margin-left: auto;
   display: flex;
   gap: 6px;
 }
 
-.endpoint-inv__attachments {
+.net-inv__attachments {
   max-width: 56rem;
 }
 
-.endpoint-inv__attach-list {
+.net-inv__attach-list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -487,7 +524,7 @@
   gap: 10px;
 }
 
-.endpoint-inv__attach-card {
+.net-inv__attach-card {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -499,54 +536,21 @@
   background: var(--bg);
 }
 
-.endpoint-inv__attach-flow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px 16px;
-  min-width: 0;
-  flex: 1;
-}
-
-.endpoint-inv__attach-end {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.endpoint-inv__attach-kind {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text);
-}
-
-.endpoint-inv__attach-value {
+.net-inv__attach-value {
   font-size: 14px;
   color: var(--text-h);
   word-break: break-word;
+  flex: 1;
+  min-width: 0;
 }
 
-.endpoint-inv__attach-arrow {
-  font-size: 18px;
-  color: var(--accent);
-  flex-shrink: 0;
-}
-
-.endpoint-inv__attach-actions {
+.net-inv__attach-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.endpoint-inv__td-actions {
-  text-align: right;
-  white-space: nowrap;
-}
-
-.endpoint-inv__btn-inline {
+.net-inv__btn-inline {
   font: inherit;
   font-size: 13px;
   padding: 5px 10px;
@@ -557,24 +561,24 @@
   cursor: pointer;
 }
 
-.endpoint-inv__btn-inline:hover {
+.net-inv__btn-inline:hover {
   filter: brightness(0.97);
 }
 
-.endpoint-inv__btn-inline--danger {
+.net-inv__btn-inline--danger {
   border-color: #b91c1c;
   color: #b91c1c;
   background: transparent;
 }
 
 @media (prefers-color-scheme: dark) {
-  .endpoint-inv__btn-inline--danger {
+  .net-inv__btn-inline--danger {
     border-color: #fca5a5;
     color: #fca5a5;
   }
 }
 
-.endpoint-inv__pill {
+.net-inv__pill {
   font-size: 12px;
   padding: 2px 8px;
   border-radius: 999px;
@@ -582,23 +586,23 @@
   border: 1px solid var(--border);
 }
 
-.endpoint-inv__pill--sm {
+.net-inv__pill--sm {
   font-size: 11px;
   padding: 1px 6px;
 }
 
-.endpoint-inv__pill--ok {
+.net-inv__pill--ok {
   color: #15803d;
   border-color: rgba(21, 128, 61, 0.35);
   background: rgba(21, 128, 61, 0.08);
 }
 
-.endpoint-inv__pill--muted {
+.net-inv__pill--muted {
   color: var(--text);
 }
 
 @media (prefers-color-scheme: dark) {
-  .endpoint-inv__pill--ok {
+  .net-inv__pill--ok {
     color: #86efac;
     border-color: rgba(134, 239, 172, 0.35);
     background: rgba(134, 239, 172, 0.1);
