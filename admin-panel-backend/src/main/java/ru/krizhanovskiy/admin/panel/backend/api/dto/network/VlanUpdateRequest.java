@@ -9,6 +9,7 @@ import ru.krizhanovskiy.admin.panel.backend.domain.enums.VlanOperStatus;
 public record VlanUpdateRequest(
         @Size(max = 256) String name,
         VlanAdminStatus adminStatus,
-        VlanOperStatus operStatus
+        VlanOperStatus operStatus,
+        Boolean isProtected
 ) {
 }

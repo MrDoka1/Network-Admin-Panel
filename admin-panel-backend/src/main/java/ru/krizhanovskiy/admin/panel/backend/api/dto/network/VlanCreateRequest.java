@@ -13,6 +13,7 @@ public record VlanCreateRequest(
         @NotNull @Min(1) @Max(4094) Short vlanId,
         @Size(max = 256) String name,
         VlanAdminStatus adminStatus,
-        VlanOperStatus operStatus
+        VlanOperStatus operStatus,
+        Boolean isProtected
 ) {
 }

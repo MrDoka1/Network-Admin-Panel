@@ -55,10 +55,10 @@ public class DeviceInterfaceService {
         var device = networkDeviceService.deviceById(deviceId);
         DeviceInterface e = new DeviceInterface();
         e.setDevice(device);
-        e.setName(request.name());
         e.setAdminStatus(request.adminStatus());
         e.setIpAddress(normalizeIp(request.ipAddress()));
 
+        DeviceInterface parent = null;
         if (request.parentInterfaceId() == null) {
             if (request.dot1qVlanId() != null) {
                 throw new IllegalArgumentException(
@@ -66,8 +66,13 @@ public class DeviceInterfaceService {
             }
             e.setParentInterface(null);
             e.setDot1qVlan(null);
+            String name = normalizeName(request.name());
+            if (name == null) {
+                throw new IllegalArgumentException("Укажите имя физического порта");
+            }
+            e.setName(name);
         } else {
-            DeviceInterface parent = interfaceById(request.parentInterfaceId());
+            parent = interfaceById(request.parentInterfaceId());
             if (!parent.getDevice().getId().equals(deviceId)) {
                 throw new IllegalArgumentException(
                         "Родительский интерфейс принадлежит другому устройству");
@@ -83,9 +88,14 @@ public class DeviceInterfaceService {
             Vlan vlan = vlanByVid(request.dot1qVlanId());
             e.setParentInterface(parent);
             e.setDot1qVlan(vlan);
+            String name = normalizeName(request.name());
+            if (name == null) {
+                name = parent.getName() + "." + request.dot1qVlanId();
+            }
+            e.setName(name);
         }
 
-        assertUniqueName(deviceId, request.name(), null);
+        assertUniqueName(deviceId, e.getName(), null);
         assertUniqueParentVlan(e);
 
         return toResponse(deviceInterfaceRepository.save(e));
@@ -204,6 +214,14 @@ public class DeviceInterfaceService {
             return null;
         }
         String t = ip.trim();
+        return t.isEmpty() ? null : t;
+    }
+
+    private static String normalizeName(String name) {
+        if (name == null) {
+            return null;
+        }
+        String t = name.trim();
         return t.isEmpty() ? null : t;
     }
 

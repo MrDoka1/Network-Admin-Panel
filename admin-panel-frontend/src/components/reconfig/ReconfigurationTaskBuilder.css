@@ -2,7 +2,7 @@
   display: grid;
   grid-template-columns: minmax(220px, 280px) 1fr;
   gap: 0;
-  min-height: calc(100svh - 168px);
+  min-height: 0;
   align-items: stretch;
   text-align: left;
 }
@@ -23,7 +23,7 @@
   position: sticky;
   top: 0;
   align-self: start;
-  max-height: calc(100svh - 120px);
+  max-height: 100%;
   overflow-y: auto;
 }
 
@@ -404,13 +404,193 @@ body[data-reconfig-dnd-kind='action'] .reconfig-builder__empty-batch--drop-targe
   gap: 10px 12px;
 }
 
+.reconfig-builder__action-fields--row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: 10px 12px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+}
+
+.reconfig-builder__action-fields--row > .reconfig-builder__field,
+.reconfig-builder__action-fields--row > label.reconfig-builder__field {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.reconfig-builder__action-fields--row .reconfig-builder__field--uuid {
+  width: 11rem;
+}
+
+.reconfig-builder__action-fields--row .reconfig-builder__field--vlan-id {
+  width: 5.5rem;
+}
+
+.reconfig-builder__action-fields--row .reconfig-builder__field--name {
+  flex: 1 1 8rem;
+  min-width: 7rem;
+}
+
+.reconfig-builder__action-fields--row .reconfig-builder__field--native {
+  width: 8.5rem;
+}
+
+.reconfig-builder__action-fields--row .reconfig-builder__field--l3 {
+  width: 12.5rem;
+}
+
+.reconfig-builder__action-fields--row .reconfig-builder__select,
+.reconfig-builder__action-fields--row .reconfig-builder__field input {
+  min-width: 0;
+}
+
+.reconfig-builder__l3-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+}
+
+.reconfig-builder__l3-slash {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--text);
+  user-select: none;
+  padding: 0 2px;
+}
+
+.reconfig-builder__l3-ip,
+.reconfig-builder__l3-mask {
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  box-sizing: border-box;
+}
+
+.reconfig-builder__l3-ip {
+  width: 8.75rem;
+  min-width: 7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.reconfig-builder__l3-mask {
+  width: 3.25rem;
+  min-width: 3rem;
+  text-align: center;
+}
+
+.reconfig-builder__vlan-picker--inline {
+  flex: 1 1 220px;
+  min-width: 200px;
+  max-width: 320px;
+}
+
+.reconfig-builder__vlan-picker--inline .reconfig-builder__vlan-selected {
+  min-height: 34px;
+  padding: 4px 8px;
+}
+
+.reconfig-builder__vlan-picker--inline .reconfig-builder__vlan-pool {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  margin-top: 4px;
+  padding-bottom: 2px;
+}
+
+.reconfig-builder__state-row--compact {
+  grid-template-columns: 1fr;
+  padding: 0 12px 4px;
+  gap: 0;
+}
+
+.reconfig-builder__state-col--compact {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.reconfig-builder__state-col--compact .reconfig-builder__state-col-title {
+  flex: 0 0 auto;
+  min-width: auto;
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.72;
+}
+
+.reconfig-builder__state-col--compact .reconfig-builder__vlan-picker--inline {
+  flex: 1 1 120px;
+  min-width: 100px;
+  max-width: 240px;
+}
+
+.reconfig-builder__state-col--compact .reconfig-builder__vlan-picker--inline .reconfig-builder__vlan-selected {
+  min-height: 28px;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.reconfig-builder__state-col--compact .reconfig-builder__vlan-picker--inline .reconfig-builder__vlan-pool {
+  margin-top: 2px;
+  max-height: 72px;
+  overflow-y: auto;
+}
+
+.reconfig-builder__state-col--compact .reconfig-builder__vlan-chip {
+  padding: 2px 4px 2px 6px;
+  font-size: 11px;
+}
+
+.reconfig-builder__state-col--compact .reconfig-builder__vlan-pool-item {
+  padding: 3px 7px;
+  font-size: 11px;
+}
+
+.reconfig-builder__field--inline-prev {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.reconfig-builder__field--inline-prev span {
+  flex: 0 0 auto;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.reconfig-builder__field--inline-prev .reconfig-builder__select,
+.reconfig-builder__input-compact {
+  min-width: 3.5rem;
+  max-width: 5rem;
+  padding: 2px 5px;
+  font-size: 11px;
+}
+
+.reconfig-builder__input-compact {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font: inherit;
+}
+
 .reconfig-builder__state-row {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
   align-items: start;
-  padding-top: 4px;
+  padding: 0 12px 12px;
 }
 
 @media (max-width: 720px) {

@@ -32,6 +32,7 @@ export type Vlan = {
   name: string
   adminStatus: string
   operStatus: string | null
+  isProtected: boolean
 }
 
 /** POST /api/v1/network/vlans — adminStatus по умолчанию ACTIVE, operStatus можно не задавать */
@@ -40,6 +41,7 @@ export type VlanCreatePayload = {
   name?: string
   adminStatus?: VlanAdminStatus
   operStatus?: VlanOperStatus | null
+  isProtected?: boolean
 }
 
 /** GET /api/v1/network/device-vlans — VLAN, настроенные на устройстве */
@@ -74,7 +76,8 @@ export type DeviceInterface = {
 
 /** POST /api/v1/network/devices/{deviceId}/interfaces */
 export type DeviceInterfaceCreatePayload = {
-  name: string
+  /** Для сабинтерфейса можно не передавать — имя parent.vlanId создаётся на сервере */
+  name?: string
   adminStatus: 'UP' | 'DOWN'
   /** null / не передавать — физический порт; иначе UUID родительского порта на этом же устройстве */
   parentInterfaceId?: string | null

@@ -43,6 +43,7 @@ public class VlanService {
         e.setName(request.name());
         e.setAdminStatus(request.adminStatus() != null ? request.adminStatus() : VlanAdminStatus.ACTIVE);
         e.setOperStatus(request.operStatus());
+        e.setProtected(Boolean.TRUE.equals(request.isProtected()));
         return networkEntityMapper.toVlanResponse(vlanRepository.save(e));
     }
 
@@ -57,6 +58,9 @@ public class VlanService {
         }
         if (request.operStatus() != null) {
             e.setOperStatus(request.operStatus());
+        }
+        if (request.isProtected() != null) {
+            e.setProtected(request.isProtected());
         }
         return networkEntityMapper.toVlanResponse(vlanRepository.save(e));
     }

@@ -1,5 +1,4 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { v4 as uuidv4 } from 'uuid'
 import { createReconfigurationTask } from '../../api/reconfigurationClient'
 import {
   fetchDevices,
@@ -13,6 +12,17 @@ import type {
   ReconfigurationTaskCreateRequest,
   ReconfigurationVlanActionCreatePayload,
 } from '../../types/reconfiguration'
+import {
+  buildInetCidr,
+  formatIpv4WhileTyping,
+  isValidIpv4Dotted,
+  parseMaskBits,
+} from '../../utils/ipv4Cidr'
+import type { DraftAction, DraftBatch } from './reconfigDraftTypes'
+import {
+  emptyBatch,
+  newDraftAction,
+} from './reconfigDraftTypes'
 import './ReconfigurationTaskBuilder.css'
 
 const DND_MIME = 'application/x-admin-reconfig-dnd'
@@ -26,8 +36,11 @@ type DndPayload =
 const ACTION_LABEL: Record<ReconfigurationActionType, string> = {
   ADD_VLAN: 'Добавить VLAN',
   DELETE_VLAN: 'Удалить VLAN',
+  CREATE_SUBINTERFACE: 'Создать subinterface',
+  DELETE_SUBINTERFACE: 'Удалить subinterface',
   SET_ACCESS: 'Access-порт',
   SET_TRUNK: 'Trunk',
+  EDIT_TRUNK: 'Изменить trunk',
   SWITCH_VLAN: 'Смена VLAN',
 }
 
@@ -69,6 +82,16 @@ const ACTION_PALETTE: {
     desc: 'Удалить VLAN.',
   },
   {
+    kind: 'CREATE_SUBINTERFACE',
+    title: ACTION_LABEL.CREATE_SUBINTERFACE,
+    desc: 'Subinterface на родительском порту с IP.',
+  },
+  {
+    kind: 'DELETE_SUBINTERFACE',
+    title: ACTION_LABEL.DELETE_SUBINTERFACE,
+    desc: 'Удалить subinterface по VLAN на родительском порту.',
+  },
+  {
     kind: 'SET_ACCESS',
     title: ACTION_LABEL.SET_ACCESS,
     desc: 'Порт в режиме access, один VLAN.',
@@ -79,127 +102,16 @@ const ACTION_PALETTE: {
     desc: 'Trunk: список VLAN и native.',
   },
   {
+    kind: 'EDIT_TRUNK',
+    title: ACTION_LABEL.EDIT_TRUNK,
+    desc: 'Изменить allowed VLAN и native на trunk-порту.',
+  },
+  {
     kind: 'SWITCH_VLAN',
     title: ACTION_LABEL.SWITCH_VLAN,
     desc: 'Переключить access-порт на другой VLAN.',
   },
 ]
-
-type DraftBatch = {
-  id: string
-  criticality: BatchCriticality
-  actions: DraftAction[]
-}
-
-type DraftAction =
-  | {
-      rowKey: string
-      actionType: 'ADD_VLAN'
-      id: string
-      deviceId: string
-      vlanId: string
-      name: string
-    }
-  | {
-      rowKey: string
-      actionType: 'DELETE_VLAN'
-      id: string
-      deviceId: string
-      vlanId: string
-    }
-  | {
-      rowKey: string
-      actionType: 'SET_ACCESS'
-      id: string
-      deviceId: string
-      port: string
-      vlanId: string
-      /** previous_state: порт был в trunk, эти VLAN в allowed */
-      previousAllowedVlanIds: number[]
-    }
-  | {
-      rowKey: string
-      actionType: 'SET_TRUNK'
-      id: string
-      deviceId: string
-      port: string
-      allowedVlanIds: number[]
-      nativeVlanId: string
-      /** previous_state: порт был в access на этом VLAN */
-      previousAccessVlanId: string
-    }
-  | {
-      rowKey: string
-      actionType: 'SWITCH_VLAN'
-      id: string
-      deviceId: string
-      port: string
-      targetVlanId: string
-      /** previous_state: VLAN до переключения */
-      previousVlanId: string
-    }
-
-function newId(): string {
-  return uuidv4()
-}
-
-function emptyBatch(criticality: BatchCriticality): DraftBatch {
-  return {
-    id: newId(),
-    criticality,
-    actions: [],
-  }
-}
-
-function newDraftAction(kind: ReconfigurationActionType): DraftAction {
-  const id = newId()
-  const rowKey = newId()
-  const deviceId = ''
-  switch (kind) {
-    case 'ADD_VLAN':
-      return {
-        rowKey,
-        actionType: 'ADD_VLAN',
-        id,
-        deviceId,
-        vlanId: '',
-        name: '',
-      }
-    case 'DELETE_VLAN':
-      return { rowKey, actionType: 'DELETE_VLAN', id, deviceId, vlanId: '' }
-    case 'SET_ACCESS':
-      return {
-        rowKey,
-        actionType: 'SET_ACCESS',
-        id,
-        deviceId,
-        port: '',
-        vlanId: '',
-        previousAllowedVlanIds: [],
-      }
-    case 'SET_TRUNK':
-      return {
-        rowKey,
-        actionType: 'SET_TRUNK',
-        id,
-        deviceId,
-        port: '',
-        allowedVlanIds: [],
-        nativeVlanId: '',
-        previousAccessVlanId: '',
-      }
-    case 'SWITCH_VLAN':
-      return {
-        rowKey,
-        actionType: 'SWITCH_VLAN',
-        id,
-        deviceId,
-        port: '',
-        targetVlanId: '',
-        previousVlanId: '',
-      }
-  }
-}
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -213,6 +125,32 @@ function parsePositiveInt(s: string): number | null {
   if (!Number.isFinite(n)) return null
   if (n < 0 || n > 4094) return null
   return n
+}
+
+function buildSubinterfaceIpCidr(
+  ipv4: string,
+  maskBits: string,
+): { ok: true; ipAddress: string } | { ok: false; error: string } {
+  const ipTrim = ipv4.trim()
+  if (!ipTrim) {
+    return { ok: false, error: 'Для «Создать subinterface» укажите IPv4-адрес.' }
+  }
+  if (!isValidIpv4Dotted(ipTrim)) {
+    return {
+      ok: false,
+      error: 'Некорректный IPv4-адрес (ожидаются четыре октета 0–255).',
+    }
+  }
+  const maskStr = maskBits.trim() === '' ? '24' : maskBits.trim()
+  const maskN = parseMaskBits(maskStr, 24)
+  if (String(maskN) !== maskStr) {
+    return { ok: false, error: 'Маска (CIDR) должна быть числом от 1 до 32.' }
+  }
+  const ipAddress = buildInetCidr(ipTrim, maskStr)
+  if (!ipAddress) {
+    return { ok: false, error: 'Не удалось собрать IP-адрес с маской.' }
+  }
+  return { ok: true, ipAddress }
 }
 
 function insertActionAt(
@@ -417,6 +355,54 @@ function buildPayload(
           })
           break
         }
+        case 'CREATE_SUBINTERFACE': {
+          if (!a.parentInterface.trim()) {
+            return {
+              ok: false,
+              error: 'Для «Создать subinterface» укажите родительский интерфейс.',
+            }
+          }
+          const vlanId = parsePositiveInt(a.vlanId)
+          if (vlanId == null) {
+            return { ok: false, error: 'Для «Создать subinterface» укажите VLAN ID.' }
+          }
+          const ipBuilt = buildSubinterfaceIpCidr(a.ipv4, a.maskBits)
+          if (!ipBuilt.ok) {
+            return { ok: false, error: ipBuilt.error }
+          }
+          row.push({
+            actionType: 'CREATE_SUBINTERFACE',
+            id: a.id.trim(),
+            deviceId: a.deviceId.trim(),
+            status: 'PENDING',
+            params: {
+              parentInterface: a.parentInterface.trim(),
+              vlanId,
+              ipAddress: ipBuilt.ipAddress,
+            },
+          })
+          break
+        }
+        case 'DELETE_SUBINTERFACE': {
+          if (!a.parentInterface.trim()) {
+            return {
+              ok: false,
+              error: 'Для «Удалить subinterface» укажите родительский интерфейс.',
+            }
+          }
+          const vlanId = parsePositiveInt(a.vlanId)
+          if (vlanId == null) {
+            return { ok: false, error: 'Для «Удалить subinterface» укажите VLAN ID.' }
+          }
+          row.push({
+            actionType: 'DELETE_SUBINTERFACE',
+            id: a.id.trim(),
+            deviceId: a.deviceId.trim(),
+            status: 'PENDING',
+            params: { parentInterface: a.parentInterface.trim(), vlanId },
+          })
+          break
+        }
         case 'SET_ACCESS': {
           const vlanId = parsePositiveInt(a.vlanId)
           if (!a.port.trim()) {
@@ -482,6 +468,62 @@ function buildPayload(
             },
             previousState: { mode: 'ACCESS', vlanId: prevAccessVlan },
             targetState: { mode: 'TRUNK', allowedVlans: allowed },
+          })
+          break
+        }
+        case 'EDIT_TRUNK': {
+          if (!a.port.trim()) {
+            return { ok: false, error: 'Для «Изменить trunk» укажите порт.' }
+          }
+          const allowed = [...a.allowedVlanIds].sort((x, y) => x - y)
+          if (allowed.length === 0) {
+            return {
+              ok: false,
+              error: 'Для «Изменить trunk» добавьте хотя бы один разрешённый VLAN.',
+            }
+          }
+          let nativeVlanId: number | null = null
+          if (a.nativeVlanId.trim()) {
+            const n = parsePositiveInt(a.nativeVlanId)
+            if (n == null) {
+              return { ok: false, error: 'Native VLAN: неверное число.' }
+            }
+            nativeVlanId = n
+          }
+          const prevAllowed = [...a.previousAllowedVlanIds].sort((x, y) => x - y)
+          if (prevAllowed.length === 0) {
+            return {
+              ok: false,
+              error:
+                'Для «Изменить trunk» укажите в «Было» хотя бы один allowed VLAN (previous_state).',
+            }
+          }
+          let previousNativeVlanId: number | null = null
+          if (a.previousNativeVlanId.trim()) {
+            const n = parsePositiveInt(a.previousNativeVlanId)
+            if (n == null) {
+              return { ok: false, error: 'Native VLAN (было): неверное число.' }
+            }
+            previousNativeVlanId = n
+          }
+          row.push({
+            actionType: 'EDIT_TRUNK',
+            id: a.id.trim(),
+            deviceId: a.deviceId.trim(),
+            status: 'PENDING',
+            params: {
+              port: a.port.trim(),
+              allowedVlans: allowed,
+              nativeVlanId,
+            },
+            previousState: {
+              allowedVlans: prevAllowed,
+              nativeVlanId: previousNativeVlanId,
+            },
+            targetState: {
+              allowedVlans: allowed,
+              nativeVlanId,
+            },
           })
           break
         }
@@ -560,6 +602,26 @@ function vlanFromVlanIdString(vlans: Vlan[], vlanIdStr: string): Vlan | undefine
   return vlans.find((v) => v.vlanId === n)
 }
 
+/** VLAN, уже занятые сабинтерфейсами на выбранном родительском порту. */
+function vlanIdsUsedOnParent(
+  ifaces: DeviceInterface[] | null,
+  parentName: string,
+): Set<number> {
+  if (!ifaces) return new Set()
+  const parent = ifaces.find(
+    (i) => i.name === parentName.trim() && i.parentInterfaceId == null,
+  )
+  if (!parent) return new Set()
+  return new Set(
+    ifaces
+      .filter(
+        (i) =>
+          i.parentInterfaceId === parent.id && i.dot1qVlanId != null,
+      )
+      .map((i) => i.dot1qVlanId as number),
+  )
+}
+
 function useDeviceInterfaces(deviceId: string) {
   const [list, setList] = useState<DeviceInterface[] | null>(null)
   const [loading, setLoading] = useState(false)
@@ -611,42 +673,141 @@ function useInventoryPreviousFromCatalog(
     if (
       actionType !== 'SET_ACCESS' &&
       actionType !== 'SET_TRUNK' &&
+      actionType !== 'EDIT_TRUNK' &&
       actionType !== 'SWITCH_VLAN'
     ) {
       return
     }
     if (!ifaceList) return
     const p = port.trim()
+    const key = `${deviceId.trim()}|${p}|${actionType}`
+
     if (!p) {
-      lastKeyRef.current = ''
+      if (lastKeyRef.current !== '') {
+        lastKeyRef.current = ''
+        if (actionType === 'SET_ACCESS') {
+          onPatch({ previousAllowedVlanIds: [] })
+        } else if (actionType === 'SET_TRUNK') {
+          onPatch({ previousAccessVlanId: '' })
+        } else if (actionType === 'EDIT_TRUNK') {
+          onPatch({ previousAllowedVlanIds: [], previousNativeVlanId: '' })
+        } else if (actionType === 'SWITCH_VLAN') {
+          onPatch({ previousVlanId: '' })
+        }
+      }
       return
     }
-    const key = `${deviceId.trim()}|${p}`
+
     if (lastKeyRef.current === key) return
-    const iface = ifaceList.find((i) => i.name === p)
+
+    const iface = ifaceList.find(
+      (i) => i.name === p && i.parentInterfaceId == null,
+    )
     if (!iface) return
+
     const b = iface.vlanBinding
     const trunkIds = b?.trunkAllowedVlanIds ?? []
-    let patch: Partial<DraftAction> | undefined
+    let patch: Partial<DraftAction>
     if (actionType === 'SET_ACCESS') {
-      if (b?.mode === 'TRUNK' && trunkIds.length > 0) {
-        patch = { previousAllowedVlanIds: [...trunkIds].sort((a, c) => a - c) }
+      patch = {
+        previousAllowedVlanIds:
+          b?.mode === 'TRUNK' && trunkIds.length > 0
+            ? [...trunkIds].sort((a, c) => a - c)
+            : [],
       }
     } else if (actionType === 'SET_TRUNK') {
-      if (b?.mode === 'ACCESS' && b.accessVlanId != null) {
-        patch = { previousAccessVlanId: String(b.accessVlanId) }
+      patch = {
+        previousAccessVlanId:
+          b?.mode === 'ACCESS' && b.accessVlanId != null
+            ? String(b.accessVlanId)
+            : '',
       }
-    } else if (actionType === 'SWITCH_VLAN') {
-      if (b?.mode === 'ACCESS' && b.accessVlanId != null) {
-        patch = { previousVlanId: String(b.accessVlanId) }
+    } else if (actionType === 'EDIT_TRUNK') {
+      patch = {
+        previousAllowedVlanIds:
+          b?.mode === 'TRUNK' && trunkIds.length > 0
+            ? [...trunkIds].sort((a, c) => a - c)
+            : [],
+        previousNativeVlanId:
+          b?.mode === 'TRUNK' && b.nativeVlanId != null
+            ? String(b.nativeVlanId)
+            : '',
+      }
+    } else {
+      patch = {
+        previousVlanId:
+          b?.mode === 'ACCESS' && b.accessVlanId != null
+            ? String(b.accessVlanId)
+            : '',
       }
     }
-    if (patch) {
-      lastKeyRef.current = key
-      onPatch(patch)
-    }
+    lastKeyRef.current = key
+    onPatch(patch)
   }, [actionType, deviceId, port, ifaceList, onPatch])
 }
+
+const L3AddressFields = memo(function L3AddressFields({
+  ipv4,
+  maskBits,
+  onPatch,
+}: {
+  ipv4: string
+  maskBits: string
+  onPatch: (patch: { ipv4?: string; maskBits?: string }) => void
+}) {
+  return (
+    <div className="reconfig-builder__field reconfig-builder__field--l3">
+      <span>L3-адрес</span>
+      <div className="reconfig-builder__l3-inline">
+        <input
+          className="reconfig-builder__l3-ip"
+          type="text"
+          inputMode="decimal"
+          placeholder="192.168.0.0"
+          value={ipv4}
+          maxLength={15}
+          autoComplete="off"
+          onChange={(e) =>
+            onPatch({ ipv4: formatIpv4WhileTyping(e.target.value) })
+          }
+          aria-label="IPv4"
+        />
+        <span className="reconfig-builder__l3-slash" aria-hidden>
+          /
+        </span>
+        <input
+          className="reconfig-builder__l3-mask"
+          type="number"
+          min={1}
+          max={32}
+          step={1}
+          value={maskBits}
+          onChange={(e) => {
+            const v = e.target.value
+            if (v === '') {
+              onPatch({ maskBits: '' })
+              return
+            }
+            const n = Number(v)
+            if (!Number.isFinite(n)) return
+            onPatch({
+              maskBits: String(Math.min(32, Math.max(1, Math.trunc(n)))),
+            })
+          }}
+          onBlur={() => {
+            if (
+              maskBits.trim() === '' ||
+              !Number.isFinite(Number(maskBits))
+            ) {
+              onPatch({ maskBits: '24' })
+            }
+          }}
+          aria-label="Маска CIDR (1–32)"
+        />
+      </div>
+    </div>
+  )
+})
 
 const DeviceSelect = memo(function DeviceSelect({
   value,
@@ -690,6 +851,8 @@ const PortSelect = memo(function PortSelect({
   port,
   onChange,
   ifacesState,
+  parentOnly = true,
+  label = 'Порт',
 }: {
   deviceId: string
   port: string
@@ -700,22 +863,28 @@ const PortSelect = memo(function PortSelect({
     loading: boolean
     ifaceErr: string | null
   }
+  /** Только физические порты (без subinterface). */
+  parentOnly?: boolean
+  label?: string
 }) {
   const internal = useDeviceInterfaces(ifacesState !== undefined ? '' : deviceId)
   const list = ifacesState !== undefined ? ifacesState.list : internal.list
   const loading = ifacesState !== undefined ? ifacesState.loading : internal.loading
   const ifaceErr = ifacesState !== undefined ? ifacesState.ifaceErr : internal.ifaceErr
-  const names = new Set((list ?? []).map((i) => i.name))
+  const filtered = (list ?? []).filter((i) =>
+    parentOnly ? i.parentInterfaceId == null : true,
+  )
+  const names = new Set(filtered.map((i) => i.name))
   const p = port.trim()
   const orphan = p && !names.has(p)
 
-  const sorted = list
-    ? [...list].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+  const sorted = filtered.length
+    ? [...filtered].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
     : []
 
   return (
     <label className="reconfig-builder__field">
-      <span>Порт</span>
+      <span>{label}</span>
       <select
         className="reconfig-builder__select"
         value={orphan ? p : p && names.has(p) ? p : ''}
@@ -750,17 +919,21 @@ const AllowedVlanPicker = memo(function AllowedVlanPicker({
   vlans,
   selected,
   onChange,
+  inline = false,
 }: {
   vlans: Vlan[]
   selected: number[]
   onChange: (next: number[]) => void
+  inline?: boolean
 }) {
   const sorted = sortVlans(vlans)
   const pool = sorted.filter((v) => !selected.includes(v.vlanId))
   const shown = [...selected].sort((a, b) => a - b)
 
   return (
-    <div className="reconfig-builder__field reconfig-builder__field--full">
+    <div
+      className={`reconfig-builder__field reconfig-builder__vlan-picker${inline ? ' reconfig-builder__vlan-picker--inline' : ' reconfig-builder__field--full'}`}
+    >
       <span>Разрешённые VLAN</span>
       <div className="reconfig-builder__vlan-selected" aria-label="Выбранные VLAN">
         {shown.length === 0 ? (
@@ -805,16 +978,30 @@ const AllowedVlanPicker = memo(function AllowedVlanPicker({
 })
 
 type Props = {
+  batches: DraftBatch[]
+  onBatchesChange: (batches: DraftBatch[]) => void
   onCancel: () => void
   onCreated: () => void
 }
 
 export const ReconfigurationTaskBuilder = memo(function ReconfigurationTaskBuilder({
+  batches,
+  onBatchesChange,
   onCancel,
   onCreated,
 }: Props) {
   const dragPayloadRef = useRef<DndPayload | null>(null)
-  const [batches, setBatches] = useState<DraftBatch[]>(() => [emptyBatch('NORMAL')])
+  const batchesRef = useRef(batches)
+  batchesRef.current = batches
+
+  const updateBatches = useCallback(
+    (updater: DraftBatch[] | ((prev: DraftBatch[]) => DraftBatch[])) => {
+      const next =
+        typeof updater === 'function' ? updater(batchesRef.current) : updater
+      onBatchesChange(next)
+    },
+    [onBatchesChange],
+  )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -874,7 +1061,7 @@ export const ReconfigurationTaskBuilder = memo(function ReconfigurationTaskBuild
       const p = readDroppedPayload(e, dragPayloadRef)
       if (!p || !isActionPayload(p)) return
       if (p.t === 'palette-action') {
-        setBatches((prev) =>
+        updateBatches((prev) =>
           insertActionAt(prev, targetBatch, slotIndex, newDraftAction(p.kind)),
         )
         setFlash(`a-${targetBatch}-${slotIndex}`)
@@ -885,14 +1072,14 @@ export const ReconfigurationTaskBuilder = memo(function ReconfigurationTaskBuild
         if (p.batchIndex === targetBatch && p.actionIndex === slotIndex) {
           return
         }
-        setBatches((prev) =>
+        updateBatches((prev) =>
           moveAction(prev, p.batchIndex, p.actionIndex, targetBatch, slotIndex),
         )
         setFlash(`a-${targetBatch}-${slotIndex}`)
         setError(null)
       }
     },
-    [setFlash],
+    [setFlash, updateBatches],
   )
 
   const handleDropBatchSlot = useCallback(
@@ -902,7 +1089,7 @@ export const ReconfigurationTaskBuilder = memo(function ReconfigurationTaskBuild
       const p = readDroppedPayload(e, dragPayloadRef)
       if (!p || !isBatchPayload(p)) return
       if (p.t === 'palette-batch') {
-        setBatches((prev) =>
+        updateBatches((prev) =>
           insertBatchAt(prev, slotIndex, emptyBatch(p.criticality)),
         )
         setFlash(`b-${slotIndex}`)
@@ -910,41 +1097,41 @@ export const ReconfigurationTaskBuilder = memo(function ReconfigurationTaskBuild
         return
       }
       if (p.t === 'move-batch') {
-        setBatches((prev) => moveBatchToSlot(prev, p.batchIndex, slotIndex))
+        updateBatches((prev) => moveBatchToSlot(prev, p.batchIndex, slotIndex))
         setFlash(`b-${slotIndex}`)
         setError(null)
       }
     },
-    [setFlash],
+    [setFlash, updateBatches],
   )
 
   const removeAction = useCallback((batchIndex: number, actionIndex: number) => {
-    setBatches((prev) => removeActionAt(prev, batchIndex, actionIndex))
-  }, [])
+    updateBatches((prev) => removeActionAt(prev, batchIndex, actionIndex))
+  }, [updateBatches])
 
   const removeBatch = useCallback((batchIndex: number) => {
-    setBatches((prev) => {
+    updateBatches((prev) => {
       if (prev.length <= 1) return prev
       return removeBatchAt(prev, batchIndex)
     })
-  }, [])
+  }, [updateBatches])
 
   const patchBatch = useCallback(
     (batchIndex: number, patch: Partial<Pick<DraftBatch, 'criticality'>>) => {
-      setBatches((prev) =>
+      updateBatches((prev) =>
         prev.map((b, i) => (i === batchIndex ? { ...b, ...patch } : b)),
       )
     },
-    [],
+    [updateBatches],
   )
 
   const patchAction = useCallback(
     (batchIndex: number, actionIndex: number, patch: Partial<DraftAction>) => {
-      setBatches((prev) =>
+      updateBatches((prev) =>
         updateActionInPlace(prev, batchIndex, actionIndex, patch),
       )
     },
-    [],
+    [updateBatches],
   )
 
   const submit = useCallback(async () => {
@@ -986,10 +1173,6 @@ export const ReconfigurationTaskBuilder = memo(function ReconfigurationTaskBuild
       <aside className="reconfig-builder__palette" aria-label="Шаблоны блоков">
         <div>
           <h2>Пакеты</h2>
-          <p className="reconfig-builder__hint">
-            Перетащите пакет на полоску между этапами справа, чтобы задать
-            критичность нового этапа.
-          </p>
         </div>
         <div className="reconfig-builder__templates">
           {BATCH_PALETTE.map((b) => (
@@ -1011,10 +1194,6 @@ export const ReconfigurationTaskBuilder = memo(function ReconfigurationTaskBuild
         </div>
         <div>
           <h2>Действия</h2>
-          <p className="reconfig-builder__hint">
-            Перетащите действие в нужный пакет: между карточками или на пустую
-            область пакета.
-          </p>
         </div>
         <div className="reconfig-builder__templates">
           {ACTION_PALETTE.map((a) => (
@@ -1235,7 +1414,10 @@ const ActionFields = memo(function ActionFields({
   const loadPortIfaces =
     action.actionType === 'SET_ACCESS' ||
     action.actionType === 'SET_TRUNK' ||
-    action.actionType === 'SWITCH_VLAN'
+    action.actionType === 'EDIT_TRUNK' ||
+    action.actionType === 'SWITCH_VLAN' ||
+    action.actionType === 'CREATE_SUBINTERFACE' ||
+    action.actionType === 'DELETE_SUBINTERFACE'
   const devId = action.deviceId
   const ifaceState = useDeviceInterfaces(
     loadPortIfaces && isValidUuid(devId.trim()) ? devId : '',
@@ -1243,7 +1425,13 @@ const ActionFields = memo(function ActionFields({
   const sharedIfaces = loadPortIfaces
     ? { list: ifaceState.list, loading: ifaceState.loading, ifaceErr: ifaceState.ifaceErr }
     : undefined
-  const portForInventory = loadPortIfaces ? action.port : ''
+  const portForInventory =
+    action.actionType === 'SET_ACCESS' ||
+    action.actionType === 'SET_TRUNK' ||
+    action.actionType === 'EDIT_TRUNK' ||
+    action.actionType === 'SWITCH_VLAN'
+      ? action.port
+      : ''
   useInventoryPreviousFromCatalog(
     action.actionType,
     devId,
@@ -1256,9 +1444,9 @@ const ActionFields = memo(function ActionFields({
     case 'ADD_VLAN': {
       const fromCat = vlanFromVlanIdString(vlans, action.vlanId)
       return (
-        <div className="reconfig-builder__action-fields">
-          <label className="reconfig-builder__field">
-            <span>ID действия (UUID)</span>
+        <div className="reconfig-builder__action-fields reconfig-builder__action-fields--row">
+          <label className="reconfig-builder__field reconfig-builder__field--uuid">
+            <span>ID (UUID)</span>
             <input
               value={action.id}
               onChange={(e) => onPatch({ id: e.target.value })}
@@ -1296,8 +1484,8 @@ const ActionFields = memo(function ActionFields({
               ))}
             </select>
           </label>
-          <label className="reconfig-builder__field">
-            <span>VLAN ID (вручную)</span>
+          <label className="reconfig-builder__field reconfig-builder__field--vlan-id">
+            <span>VLAN ID</span>
             <input
               value={action.vlanId}
               onChange={(e) => onPatch({ vlanId: e.target.value })}
@@ -1305,11 +1493,12 @@ const ActionFields = memo(function ActionFields({
               placeholder="0–4094"
             />
           </label>
-          <label className="reconfig-builder__field reconfig-builder__field--full">
-            <span>Имя VLAN (необязательно)</span>
+          <label className="reconfig-builder__field reconfig-builder__field--name">
+            <span>Имя VLAN</span>
             <input
               value={action.name}
               onChange={(e) => onPatch({ name: e.target.value })}
+              placeholder="необязательно"
             />
           </label>
         </div>
@@ -1351,6 +1540,136 @@ const ActionFields = memo(function ActionFields({
         </div>
       )
     }
+    case 'CREATE_SUBINTERFACE': {
+      const fromCat = vlanFromVlanIdString(vlans, action.vlanId)
+      const usedVlans = vlanIdsUsedOnParent(
+        ifaceState.list,
+        action.parentInterface,
+      )
+      const vlansForSubif = sortedVlans.filter((v) => !usedVlans.has(v.vlanId))
+      return (
+        <div className="reconfig-builder__action-fields reconfig-builder__action-fields--row">
+          <label className="reconfig-builder__field reconfig-builder__field--uuid">
+            <span>ID (UUID)</span>
+            <input
+              value={action.id}
+              onChange={(e) => onPatch({ id: e.target.value })}
+            />
+          </label>
+          <DeviceSelect
+            value={action.deviceId}
+            devices={devices}
+            onChange={(deviceId) => onPatch({ deviceId, parentInterface: '' })}
+          />
+          <PortSelect
+            deviceId={action.deviceId}
+            port={action.parentInterface}
+            onChange={(parentInterface) =>
+              onPatch({ parentInterface, vlanId: '' })
+            }
+            ifacesState={sharedIfaces}
+            parentOnly
+            label="Родитель"
+          />
+          <label className="reconfig-builder__field">
+            <span>VLAN</span>
+            <select
+              className="reconfig-builder__select"
+              value={fromCat ? String(fromCat.vlanId) : ''}
+              onChange={(e) => {
+                const vid = e.target.value
+                if (!vid) {
+                  onPatch({ vlanId: '' })
+                  return
+                }
+                const v = vlans.find((x) => String(x.vlanId) === vid)
+                if (v) onPatch({ vlanId: String(v.vlanId) })
+              }}
+              disabled={!action.parentInterface.trim()}
+            >
+              <option value="">
+                {action.parentInterface.trim()
+                  ? '— VLAN —'
+                  : '— сначала порт —'}
+              </option>
+              {vlansForSubif.map((v) => (
+                <option key={v.vlanId} value={String(v.vlanId)}>
+                  {v.vlanId}
+                  {v.name ? ` — ${v.name}` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="reconfig-builder__field reconfig-builder__field--vlan-id">
+            <span>VLAN ID</span>
+            <input
+              value={action.vlanId}
+              onChange={(e) => onPatch({ vlanId: e.target.value })}
+              inputMode="numeric"
+              placeholder="0–4094"
+            />
+          </label>
+          <L3AddressFields
+            ipv4={action.ipv4}
+            maskBits={action.maskBits}
+            onPatch={onPatch}
+          />
+        </div>
+      )
+    }
+    case 'DELETE_SUBINTERFACE': {
+      const vidStr = action.vlanId.trim()
+      const inList = sortedVlans.some((v) => String(v.vlanId) === vidStr)
+      return (
+        <div className="reconfig-builder__action-fields">
+          <label className="reconfig-builder__field">
+            <span>ID действия (UUID)</span>
+            <input
+              value={action.id}
+              onChange={(e) => onPatch({ id: e.target.value })}
+            />
+          </label>
+          <DeviceSelect
+            value={action.deviceId}
+            devices={devices}
+            onChange={(deviceId) => onPatch({ deviceId, parentInterface: '' })}
+          />
+          <PortSelect
+            deviceId={action.deviceId}
+            port={action.parentInterface}
+            onChange={(parentInterface) => onPatch({ parentInterface })}
+            ifacesState={sharedIfaces}
+            parentOnly
+            label="Родительский интерфейс"
+          />
+          <label className="reconfig-builder__field">
+            <span>VLAN</span>
+            <select
+              className="reconfig-builder__select"
+              value={inList ? vidStr : ''}
+              onChange={(e) => onPatch({ vlanId: e.target.value })}
+            >
+              <option value="">— выберите VLAN —</option>
+              {sortedVlans.map((v) => (
+                <option key={v.vlanId} value={String(v.vlanId)}>
+                  {v.vlanId}
+                  {v.name ? ` — ${v.name}` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="reconfig-builder__field">
+            <span>VLAN ID (вручную)</span>
+            <input
+              value={action.vlanId}
+              onChange={(e) => onPatch({ vlanId: e.target.value })}
+              inputMode="numeric"
+              placeholder="0–4094"
+            />
+          </label>
+        </div>
+      )
+    }
     case 'SET_ACCESS': {
       const fromCat = vlanFromVlanIdString(vlans, action.vlanId)
       return (
@@ -1372,7 +1691,7 @@ const ActionFields = memo(function ActionFields({
           <PortSelect
             deviceId={action.deviceId}
             port={action.port}
-            onChange={(port) => onPatch({ port })}
+            onChange={(port) => onPatch({ port, previousAllowedVlanIds: [] })}
             ifacesState={sharedIfaces}
           />
           <label className="reconfig-builder__field">
@@ -1407,19 +1726,17 @@ const ActionFields = memo(function ActionFields({
               inputMode="numeric"
             />
           </label>
-          <div className="reconfig-builder__state-row">
-            <div className="reconfig-builder__state-col">
-              <span className="reconfig-builder__state-col-title">Было · previous_state</span>
-              <p className="reconfig-builder__state-hint">
-                Порт в trunk: разрешённые VLAN до перевода в access. При выборе порта из каталога
-                список подставляется из БД (trunk_allowed_vlan), если порт сейчас в режиме trunk.
-              </p>
+          <div className="reconfig-builder__state-row reconfig-builder__state-row--compact">
+            <div className="reconfig-builder__state-col reconfig-builder__state-col--compact">
+              <span className="reconfig-builder__state-col-title">Было</span>
               <AllowedVlanPicker
                 vlans={vlans}
                 selected={action.previousAllowedVlanIds}
                 onChange={(previousAllowedVlanIds) => onPatch({ previousAllowedVlanIds })}
+                inline
               />
             </div>
+            {/*
             <div className="reconfig-builder__state-col">
               <span className="reconfig-builder__state-col-title">Станет · target_state</span>
               <pre className="reconfig-builder__state-json" aria-label="target_state">
@@ -1432,6 +1749,7 @@ const ActionFields = memo(function ActionFields({
                 })()}
               </pre>
             </div>
+            */}
           </div>
         </div>
       )
@@ -1445,14 +1763,15 @@ const ActionFields = memo(function ActionFields({
         nStr === '' ? '' : nativeInCatalog || parsePositiveInt(nStr) != null ? nStr : ''
       const fromPrevCat = vlanFromVlanIdString(vlans, action.previousAccessVlanId)
       return (
-        <div className="reconfig-builder__action-fields">
-          <label className="reconfig-builder__field">
-            <span>ID действия (UUID)</span>
-            <input
-              value={action.id}
-              onChange={(e) => onPatch({ id: e.target.value })}
-            />
-          </label>
+        <>
+          <div className="reconfig-builder__action-fields reconfig-builder__action-fields--row">
+            <label className="reconfig-builder__field reconfig-builder__field--uuid">
+              <span>ID (UUID)</span>
+              <input
+                value={action.id}
+                onChange={(e) => onPatch({ id: e.target.value })}
+              />
+            </label>
           <DeviceSelect
             value={action.deviceId}
             devices={devices}
@@ -1463,16 +1782,19 @@ const ActionFields = memo(function ActionFields({
           <PortSelect
             deviceId={action.deviceId}
             port={action.port}
-            onChange={(port) => onPatch({ port })}
+            onChange={(port) =>
+              onPatch({ port, previousAccessVlanId: '' })
+            }
             ifacesState={sharedIfaces}
           />
-          <AllowedVlanPicker
-            vlans={vlans}
-            selected={action.allowedVlanIds}
-            onChange={(allowedVlanIds) => onPatch({ allowedVlanIds })}
-          />
-          <label className="reconfig-builder__field">
-            <span>Native VLAN</span>
+            <AllowedVlanPicker
+              vlans={vlans}
+              selected={action.allowedVlanIds}
+              onChange={(allowedVlanIds) => onPatch({ allowedVlanIds })}
+              inline
+            />
+            <label className="reconfig-builder__field reconfig-builder__field--native">
+              <span>Native VLAN</span>
             <select
               className="reconfig-builder__select"
               value={nativeSelectValue}
@@ -1492,15 +1814,12 @@ const ActionFields = memo(function ActionFields({
               ))}
             </select>
           </label>
-          <div className="reconfig-builder__state-row">
-            <div className="reconfig-builder__state-col">
-              <span className="reconfig-builder__state-col-title">Было · previous_state</span>
-              <p className="reconfig-builder__state-hint">
-                Порт в access на одном VLAN до перевода в trunk. Если в БД порт в режиме access,
-                VLAN подставляется из interface_vlan.access_vlan_id.
-              </p>
-              <label className="reconfig-builder__field">
-                <span>VLAN из каталога</span>
+          </div>
+          <div className="reconfig-builder__state-row reconfig-builder__state-row--compact">
+            <div className="reconfig-builder__state-col reconfig-builder__state-col--compact">
+              <span className="reconfig-builder__state-col-title">Было</span>
+              <label className="reconfig-builder__field reconfig-builder__field--inline-prev">
+                <span>VLAN</span>
                 <select
                   className="reconfig-builder__select"
                   value={fromPrevCat ? String(fromPrevCat.vlanId) : ''}
@@ -1514,24 +1833,26 @@ const ActionFields = memo(function ActionFields({
                     if (v) onPatch({ previousAccessVlanId: String(v.vlanId) })
                   }}
                 >
-                  <option value="">— не из списка —</option>
+                  <option value="">—</option>
                   {sortedVlans.map((v) => (
                     <option key={v.vlanId} value={String(v.vlanId)}>
                       {v.vlanId}
-                      {v.name ? ` — ${v.name}` : ''}
                     </option>
                   ))}
                 </select>
               </label>
-              <label className="reconfig-builder__field">
-                <span>VLAN ID (вручную)</span>
+              <label className="reconfig-builder__field reconfig-builder__field--inline-prev">
+                <span>ID</span>
                 <input
+                  className="reconfig-builder__input-compact"
                   value={action.previousAccessVlanId}
                   onChange={(e) => onPatch({ previousAccessVlanId: e.target.value })}
                   inputMode="numeric"
+                  placeholder="VID"
                 />
               </label>
             </div>
+            {/*
             <div className="reconfig-builder__state-col">
               <span className="reconfig-builder__state-col-title">Станет · target_state</span>
               <pre className="reconfig-builder__state-json" aria-label="target_state">
@@ -1548,8 +1869,144 @@ const ActionFields = memo(function ActionFields({
                 })()}
               </pre>
             </div>
+            */}
           </div>
-        </div>
+        </>
+      )
+    }
+    case 'EDIT_TRUNK': {
+      const nStr = action.nativeVlanId.trim()
+      const nativeInCatalog = nStr
+        ? sortedVlans.some((v) => String(v.vlanId) === nStr)
+        : false
+      const nativeSelectValue =
+        nStr === '' ? '' : nativeInCatalog || parsePositiveInt(nStr) != null ? nStr : ''
+      const prevNativeStr = action.previousNativeVlanId.trim()
+      const prevNativeInCatalog = prevNativeStr
+        ? sortedVlans.some((v) => String(v.vlanId) === prevNativeStr)
+        : false
+      const prevNativeSelectValue =
+        prevNativeStr === ''
+          ? ''
+          : prevNativeInCatalog || parsePositiveInt(prevNativeStr) != null
+            ? prevNativeStr
+            : ''
+      return (
+        <>
+          <div className="reconfig-builder__action-fields reconfig-builder__action-fields--row">
+            <label className="reconfig-builder__field reconfig-builder__field--uuid">
+              <span>ID (UUID)</span>
+              <input
+                value={action.id}
+                onChange={(e) => onPatch({ id: e.target.value })}
+              />
+            </label>
+            <DeviceSelect
+              value={action.deviceId}
+              devices={devices}
+              onChange={(deviceId) =>
+                onPatch({
+                  deviceId,
+                  port: '',
+                  previousAllowedVlanIds: [],
+                  previousNativeVlanId: '',
+                })
+              }
+            />
+            <PortSelect
+              deviceId={action.deviceId}
+              port={action.port}
+              onChange={(port) =>
+                onPatch({
+                  port,
+                  previousAllowedVlanIds: [],
+                  previousNativeVlanId: '',
+                })
+              }
+              ifacesState={sharedIfaces}
+            />
+            <AllowedVlanPicker
+              vlans={vlans}
+              selected={action.allowedVlanIds}
+              onChange={(allowedVlanIds) => onPatch({ allowedVlanIds })}
+              inline
+            />
+            <label className="reconfig-builder__field reconfig-builder__field--native">
+              <span>Native VLAN</span>
+              <select
+                className="reconfig-builder__select"
+                value={nativeSelectValue}
+                onChange={(e) => onPatch({ nativeVlanId: e.target.value })}
+              >
+                <option value="">— не задан —</option>
+                {!nativeInCatalog && nStr && parsePositiveInt(nStr) != null ? (
+                  <option value={nStr}>
+                    {nStr} (не в каталоге)
+                  </option>
+                ) : null}
+                {sortedVlans.map((v) => (
+                  <option key={v.vlanId} value={String(v.vlanId)}>
+                    {v.vlanId}
+                    {v.name ? ` — ${v.name}` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="reconfig-builder__state-row reconfig-builder__state-row--compact">
+            <div className="reconfig-builder__state-col reconfig-builder__state-col--compact">
+              <span className="reconfig-builder__state-col-title">Было</span>
+              <AllowedVlanPicker
+                vlans={vlans}
+                selected={action.previousAllowedVlanIds}
+                onChange={(previousAllowedVlanIds) => onPatch({ previousAllowedVlanIds })}
+                inline
+              />
+              <label className="reconfig-builder__field reconfig-builder__field--inline-prev">
+                <span>Native</span>
+                <select
+                  className="reconfig-builder__select"
+                  value={prevNativeSelectValue}
+                  onChange={(e) => onPatch({ previousNativeVlanId: e.target.value })}
+                >
+                  <option value="">—</option>
+                  {!prevNativeInCatalog &&
+                  prevNativeStr &&
+                  parsePositiveInt(prevNativeStr) != null ? (
+                    <option value={prevNativeStr}>{prevNativeStr}</option>
+                  ) : null}
+                  {sortedVlans.map((v) => (
+                    <option key={v.vlanId} value={String(v.vlanId)}>
+                      {v.vlanId}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {/*
+            <div className="reconfig-builder__state-col">
+              <span className="reconfig-builder__state-col-title">Станет · target_state</span>
+              <pre className="reconfig-builder__state-json" aria-label="target_state">
+                {(() => {
+                  const allowed = [...action.allowedVlanIds].sort((x, y) => x - y)
+                  if (allowed.length === 0) {
+                    return '— задайте разрешённые VLAN выше —'
+                  }
+                  const native = parsePositiveInt(action.nativeVlanId)
+                  return JSON.stringify(
+                    {
+                      allowedVlans: allowed,
+                      nativeVlanId: native,
+                    },
+                    null,
+                    2,
+                  )
+                })()}
+              </pre>
+            </div>
+            */}
+          </div>
+        </>
       )
     }
     case 'SWITCH_VLAN': {
@@ -1574,7 +2031,7 @@ const ActionFields = memo(function ActionFields({
           <PortSelect
             deviceId={action.deviceId}
             port={action.port}
-            onChange={(port) => onPatch({ port })}
+            onChange={(port) => onPatch({ port, previousVlanId: '' })}
             ifacesState={sharedIfaces}
           />
           <label className="reconfig-builder__field">
@@ -1609,15 +2066,11 @@ const ActionFields = memo(function ActionFields({
               inputMode="numeric"
             />
           </label>
-          <div className="reconfig-builder__state-row">
-            <div className="reconfig-builder__state-col">
-              <span className="reconfig-builder__state-col-title">Было · previous_state</span>
-              <p className="reconfig-builder__state-hint">
-                Текущий VLAN на access-порту. При выборе порта из каталога подставляется из
-                interface_vlan.access_vlan_id, если режим access.
-              </p>
-              <label className="reconfig-builder__field">
-                <span>VLAN из каталога</span>
+          <div className="reconfig-builder__state-row reconfig-builder__state-row--compact">
+            <div className="reconfig-builder__state-col reconfig-builder__state-col--compact">
+              <span className="reconfig-builder__state-col-title">Было</span>
+              <label className="reconfig-builder__field reconfig-builder__field--inline-prev">
+                <span>VLAN</span>
                 <select
                   className="reconfig-builder__select"
                   value={fromPrevCat ? String(fromPrevCat.vlanId) : ''}
@@ -1631,24 +2084,26 @@ const ActionFields = memo(function ActionFields({
                     if (v) onPatch({ previousVlanId: String(v.vlanId) })
                   }}
                 >
-                  <option value="">— не из списка —</option>
+                  <option value="">—</option>
                   {sortedVlans.map((v) => (
                     <option key={v.vlanId} value={String(v.vlanId)}>
                       {v.vlanId}
-                      {v.name ? ` — ${v.name}` : ''}
                     </option>
                   ))}
                 </select>
               </label>
-              <label className="reconfig-builder__field">
-                <span>VLAN ID (вручную)</span>
+              <label className="reconfig-builder__field reconfig-builder__field--inline-prev">
+                <span>ID</span>
                 <input
+                  className="reconfig-builder__input-compact"
                   value={action.previousVlanId}
                   onChange={(e) => onPatch({ previousVlanId: e.target.value })}
                   inputMode="numeric"
+                  placeholder="VID"
                 />
               </label>
             </div>
+            {/*
             <div className="reconfig-builder__state-col">
               <span className="reconfig-builder__state-col-title">Станет · target_state</span>
               <pre className="reconfig-builder__state-json" aria-label="target_state">
@@ -1661,6 +2116,7 @@ const ActionFields = memo(function ActionFields({
                 })()}
               </pre>
             </div>
+            */}
           </div>
         </div>
       )

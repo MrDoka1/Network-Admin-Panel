@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type FormEvent,
 } from 'react'
 import {
   createDeviceVlan,
@@ -12,6 +13,7 @@ import {
   fetchDeviceVlans,
   fetchDevices,
   fetchVlans,
+  createVlan,
 } from '../../api/networkClient'
 import type { DeviceVlan, NetworkDevice, Vlan } from '../../types/network'
 import { VlanMatrixCell, type VlanMatrixPending } from './VlanMatrixCell'
@@ -39,6 +41,12 @@ export const VlanMatrixView = memo(function VlanMatrixView() {
   const [deviceVlans, setDeviceVlans] = useState<DeviceVlan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const [newVlanId, setNewVlanId] = useState('')
+  const [newVlanName, setNewVlanName] = useState('')
+  const [newVlanProtected, setNewVlanProtected] = useState(false)
+  const [createBusy, setCreateBusy] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
 
   const [pending, setPending] = useState<VlanMatrixPending | null>(null)
   const [toggling, setToggling] = useState(false)
@@ -157,10 +165,95 @@ export const VlanMatrixView = memo(function VlanMatrixView() {
     [toggling, pending, clearPendingTimer, confirmToggle, schedulePendingReset],
   )
 
+  const submitCreate = useCallback(
+    async (e: FormEvent) => {
+      e.preventDefault()
+      setCreateError(null)
+      const raw = newVlanId.trim()
+      const id = Number(raw)
+      if (raw === '' || !Number.isInteger(id) || id < 1 || id > 4094) {
+        setCreateError('Укажите номер VLAN (VID) от 1 до 4094.')
+        return
+      }
+      setCreateBusy(true)
+      try {
+        const created = await createVlan({
+          vlanId: id,
+          ...(newVlanName.trim() ? { name: newVlanName.trim() } : {}),
+          isProtected: newVlanProtected,
+        })
+        setVlans((prev) => sortVlans([...prev, created]))
+        setNewVlanId('')
+        setNewVlanName('')
+        setNewVlanProtected(false)
+      } catch (err) {
+        setCreateError(err instanceof Error ? err.message : String(err))
+      } finally {
+        setCreateBusy(false)
+      }
+    },
+    [newVlanId, newVlanName, newVlanProtected],
+  )
+
   return (
     <div className="vlan-matrix">
       <header className="vlan-matrix__header">
-        <h1>VLAN</h1>
+        <div className="vlan-matrix__header-top">
+          <h1>VLAN</h1>
+          <form className="vlan-matrix__create" onSubmit={(e) => void submitCreate(e)}>
+            <div className="vlan-matrix__field">
+              <label htmlFor="vlan-matrix-vid">VID</label>
+              <input
+                id="vlan-matrix-vid"
+                type="number"
+                min={1}
+                max={4094}
+                step={1}
+                inputMode="numeric"
+                value={newVlanId}
+                onChange={(e) => setNewVlanId(e.target.value)}
+                disabled={createBusy}
+                placeholder="1–4094"
+              />
+            </div>
+            <div className="vlan-matrix__field">
+              <label htmlFor="vlan-matrix-name">Имя</label>
+              <input
+                id="vlan-matrix-name"
+                type="text"
+                maxLength={256}
+                value={newVlanName}
+                onChange={(e) => setNewVlanName(e.target.value)}
+                disabled={createBusy}
+                placeholder="опционально"
+              />
+            </div>
+            <div className="vlan-matrix__field vlan-matrix__field--checkbox">
+              <label htmlFor="vlan-matrix-protected">
+                <input
+                  id="vlan-matrix-protected"
+                  type="checkbox"
+                  checked={newVlanProtected}
+                  onChange={(e) => setNewVlanProtected(e.target.checked)}
+                  disabled={createBusy}
+                />
+                Защищённый
+              </label>
+            </div>
+            <button
+              type="submit"
+              className="vlan-matrix__btn vlan-matrix__btn--primary"
+              disabled={createBusy}
+            >
+              {createBusy ? '…' : 'Создать'}
+            </button>
+            {createError ? (
+              <p className="vlan-matrix__create-error" role="alert">
+                {createError}
+              </p>
+            ) : null}
+          </form>
+        </div>
         {toggleError ? (
           <p className="vlan-matrix__error" role="alert">
             {toggleError}
@@ -191,6 +284,14 @@ export const VlanMatrixView = memo(function VlanMatrixView() {
                 {sortedVlans.map((v) => (
                   <th key={v.vlanId} className="vlan-matrix__col-head" scope="col">
                     {v.vlanId}
+                    {v.isProtected ? (
+                      <span
+                        className="vlan-matrix__col-protected"
+                        title="Защищённый VLAN"
+                      >
+                        зщ.
+                      </span>
+                    ) : null}
                     {v.name ? (
                       <span className="vlan-matrix__col-name" title={v.name}>
                         {v.name}

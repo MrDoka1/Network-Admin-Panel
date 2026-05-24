@@ -11,10 +11,14 @@ import java.util.UUID;
         @JsonSubTypes.Type(value = DeleteVlanReconfigAction.class, name = "DELETE_VLAN"),
         @JsonSubTypes.Type(value = SetAccessReconfigAction.class, name = "SET_ACCESS"),
         @JsonSubTypes.Type(value = SetTrunkReconfigAction.class, name = "SET_TRUNK"),
-        @JsonSubTypes.Type(value = SwitchVlanReconfigAction.class, name = "SWITCH_VLAN")
+        @JsonSubTypes.Type(value = EditTrunkReconfigAction.class, name = "EDIT_TRUNK"),
+        @JsonSubTypes.Type(value = SwitchVlanReconfigAction.class, name = "SWITCH_VLAN"),
+        @JsonSubTypes.Type(value = CreateSubinterfaceReconfigAction.class, name = "CREATE_SUBINTERFACE"),
+        @JsonSubTypes.Type(value = DeleteSubinterfaceReconfigAction.class, name = "DELETE_SUBINTERFACE")
 })
 public sealed interface VlanReconfigAction permits AddVlanReconfigAction, DeleteVlanReconfigAction, SetAccessReconfigAction,
-        SetTrunkReconfigAction, SwitchVlanReconfigAction {
+        SetTrunkReconfigAction, EditTrunkReconfigAction, SwitchVlanReconfigAction, CreateSubinterfaceReconfigAction,
+        DeleteSubinterfaceReconfigAction {
 
     UUID id();
 

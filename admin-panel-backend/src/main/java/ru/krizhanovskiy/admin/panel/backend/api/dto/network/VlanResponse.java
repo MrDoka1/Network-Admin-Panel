@@ -9,6 +9,7 @@ public record VlanResponse(
         Short vlanId,
         String name,
         VlanAdminStatus adminStatus,
-        VlanOperStatus operStatus
+        VlanOperStatus operStatus,
+        boolean isProtected
 ) {
 }

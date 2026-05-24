@@ -1,16 +1,21 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { fetchDevices } from '../../api/networkClient'
+import { fetchDevices, fetchVlans } from '../../api/networkClient'
 import {
   cancelReconfigurationTask,
   confirmReconfigurationTask,
   fetchReconfigurationTasks,
 } from '../../api/reconfigurationClient'
-import { ReconfigurationTaskBuilder } from './ReconfigurationTaskBuilder'
-import type { NetworkDevice } from '../../types/network'
+import {
+  ReconfigurationCreatePanel,
+  upsertRollbackDraftTab,
+} from './ReconfigurationCreatePanel'
+import { ReconfigRollbackToast } from './ReconfigRollbackToast'
+import type { DeviceInterface, NetworkDevice, Vlan } from '../../types/network'
 import type {
   ActionExecutionStatus,
   BatchCriticality,
+  ReconfigurationBatchView,
   ReconfigurationEntityStatus,
   ReconfigurationTask,
   ReconfigurationVlanAction,
@@ -20,6 +25,15 @@ import {
   reconfigSectionPath,
   TAB_PATH,
 } from '../../routes'
+import type { DraftBatch } from './reconfigDraftTypes'
+import {
+  buildRollbackBatchesForAction,
+  buildRollbackBatchesForBatch,
+  buildRollbackBatchesForTask,
+  collectActionsFromTask,
+  isRollbackEligibleStatus,
+  loadInterfacesForActions,
+} from './reconfigRollback'
 import './ReconfigurationTasksView.css'
 
 const COMPLETED_TASK_STATUSES: ReadonlySet<ReconfigurationEntityStatus> = new Set([
@@ -36,8 +50,11 @@ const ACTION_TYPE_LABEL: Record<ReconfigurationVlanAction['actionType'], string>
   {
     ADD_VLAN: 'Добавить VLAN',
     DELETE_VLAN: 'Удалить VLAN',
+    CREATE_SUBINTERFACE: 'Создать subinterface',
+    DELETE_SUBINTERFACE: 'Удалить subinterface',
     SET_ACCESS: 'Access-порт',
     SET_TRUNK: 'Trunk',
+    EDIT_TRUNK: 'Изменить trunk',
     SWITCH_VLAN: 'Смена VLAN',
   }
 
@@ -188,6 +205,32 @@ function vlanIdFromSwitchPortState(state: unknown): number | null {
   return null
 }
 
+function vlanIdsFromEditTrunkState(state: unknown): number[] {
+  if (
+    state != null &&
+    typeof state === 'object' &&
+    'allowedVlans' in state &&
+    Array.isArray((state as { allowedVlans: unknown }).allowedVlans)
+  ) {
+    return (state as { allowedVlans: unknown[] }).allowedVlans.filter(
+      (x): x is number => typeof x === 'number',
+    )
+  }
+  return []
+}
+
+function nativeVlanFromEditTrunkState(state: unknown): number | null {
+  if (
+    state != null &&
+    typeof state === 'object' &&
+    'nativeVlanId' in state &&
+    typeof (state as { nativeVlanId: unknown }).nativeVlanId === 'number'
+  ) {
+    return (state as { nativeVlanId: number }).nativeVlanId
+  }
+  return null
+}
+
 function describeAction(a: ReconfigurationVlanAction): string {
   const p = a.params ?? {}
   switch (a.actionType) {
@@ -199,6 +242,20 @@ function describeAction(a: ReconfigurationVlanAction): string {
     case 'DELETE_VLAN': {
       const vlanId = typeof p.vlanId === 'number' ? p.vlanId : '?'
       return `VLAN ${vlanId}`
+    }
+    case 'CREATE_SUBINTERFACE': {
+      const parent =
+        typeof p.parentInterface === 'string' && p.parentInterface ? p.parentInterface : '?'
+      const vlanId = typeof p.vlanId === 'number' ? p.vlanId : '?'
+      const ip =
+        typeof p.ipAddress === 'string' && p.ipAddress ? p.ipAddress : '—'
+      return `${parent} · VLAN ${vlanId} · ${ip}`
+    }
+    case 'DELETE_SUBINTERFACE': {
+      const parent =
+        typeof p.parentInterface === 'string' && p.parentInterface ? p.parentInterface : '?'
+      const vlanId = typeof p.vlanId === 'number' ? p.vlanId : '?'
+      return `${parent} · VLAN ${vlanId}`
     }
     case 'SET_ACCESS': {
       const port = typeof p.port === 'string' ? p.port : '?'
@@ -217,6 +274,16 @@ function describeAction(a: ReconfigurationVlanAction): string {
           ? String(p.nativeVlanId)
           : '—'
       return `порт ${port}, разрешены: ${allowed}, native: ${native}`
+    }
+    case 'EDIT_TRUNK': {
+      const port = typeof p.port === 'string' ? p.port : '?'
+      const prevAllowed = vlanIdsFromEditTrunkState(a.previousState).join(', ') || '—'
+      const nextAllowed = vlanIdsFromEditTrunkState(a.targetState).join(', ') || '—'
+      const prevNative = nativeVlanFromEditTrunkState(a.previousState)
+      const nextNative = nativeVlanFromEditTrunkState(a.targetState)
+      const prevNativeStr = prevNative != null ? String(prevNative) : '—'
+      const nextNativeStr = nextNative != null ? String(nextNative) : '—'
+      return `порт ${port}: VLAN [${prevAllowed}] native ${prevNativeStr} → [${nextAllowed}] native ${nextNativeStr}`
     }
     case 'SWITCH_VLAN': {
       const port = typeof p.port === 'string' ? p.port : '?'
@@ -305,6 +372,10 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
   const [collapsedTaskIds, setCollapsedTaskIds] = useState<Set<string>>(
     () => new Set(),
   )
+  const [rollbackToastTabId, setRollbackToastTabId] = useState<string | null>(
+    null,
+  )
+  const [rollbackBusy, setRollbackBusy] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -405,6 +476,68 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
     [mergeTaskUpdate],
   )
 
+  const openRollbackTab = useCallback(
+    async (
+      label: string,
+      build: (
+        ifacesByDevice: Map<string, DeviceInterface[]>,
+        vlans: Vlan[],
+      ) => DraftBatch[],
+      actionsForFetch: ReconfigurationVlanAction[],
+    ) => {
+      setRollbackBusy(true)
+      setError(null)
+      try {
+        const [ifacesByDevice, vlans] = await Promise.all([
+          loadInterfacesForActions(actionsForFetch),
+          fetchVlans().catch(() => []),
+        ])
+        const batches = build(ifacesByDevice, vlans)
+        const { tabId } = upsertRollbackDraftTab(batches, label)
+        setRollbackToastTabId(tabId)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+      } finally {
+        setRollbackBusy(false)
+      }
+    },
+    [],
+  )
+
+  const handleRollbackAction = useCallback(
+    (action: ReconfigurationVlanAction) => {
+      void openRollbackTab(
+        'Откат действия',
+        (ifaces, vlans) => buildRollbackBatchesForAction(action, ifaces, vlans),
+        [action],
+      )
+    },
+    [openRollbackTab],
+  )
+
+  const handleRollbackBatch = useCallback(
+    (batch: ReconfigurationBatchView) => {
+      void openRollbackTab(
+        'Откат пакета',
+        (ifaces, vlans) => buildRollbackBatchesForBatch(batch, ifaces, vlans),
+        batch.actions,
+      )
+    },
+    [openRollbackTab],
+  )
+
+  const handleRollbackTask = useCallback(
+    (task: ReconfigurationTask) => {
+      const actions = collectActionsFromTask(task)
+      void openRollbackTab(
+        'Откат задачи',
+        (ifaces, vlans) => buildRollbackBatchesForTask(task, ifaces, vlans),
+        actions,
+      )
+    },
+    [openRollbackTab],
+  )
+
   if (section === null) {
     return null
   }
@@ -414,20 +547,7 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
       <header className="reconfig-tasks__header">
         <div className="reconfig-tasks__title-block">
           <h1 id="reconfig-tasks-heading">Реконфигурационные таски</h1>
-          <p className="reconfig-tasks__subtitle">
-            {section === 'list' ? (
-              <>
-                Снимок сообщений из Kafka (чтение с начала топика). Порядок в
-                списке — по времени создания записи в UI (новые сверху); в Kafka
-                глобальный порядок по времени не гарантируется.
-              </>
-            ) : (
-              <>
-                Соберите пакеты и действия, расставьте их перетаскиванием и отправьте
-                сообщение в Kafka через API бэкенда.
-              </>
-            )}
-          </p>
+          
         </div>
         <div className="reconfig-tasks__subtabs" role="tablist" aria-label="Режим">
           <button
@@ -499,9 +619,15 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
         </div>
       </header>
       {section === 'create' ? (
-        <ReconfigurationTaskBuilder
+        <ReconfigurationCreatePanel
           onCancel={() => selectSection('list')}
           onCreated={() => void load()}
+        />
+      ) : null}
+      {rollbackToastTabId ? (
+        <ReconfigRollbackToast
+          tabId={rollbackToastTabId}
+          onDismiss={() => setRollbackToastTabId(null)}
         />
       ) : null}
       {section === 'list' && error ? (
@@ -561,8 +687,20 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
                   <span className={pillClassForEntity(task.status)}>
                     {entityStatusLabel(task.status)}
                   </span>
-                  {(canCancelTask(task) || canConfirmTask(task.status)) ? (
+                  {(canCancelTask(task) ||
+                    canConfirmTask(task.status) ||
+                    isRollbackEligibleStatus(task.status)) ? (
                     <div className="reconfig-card__actions">
+                      {isRollbackEligibleStatus(task.status) ? (
+                        <button
+                          type="button"
+                          className="reconfig-tasks__btn reconfig-card__btn reconfig-card__btn--rollback"
+                          disabled={rollbackBusy}
+                          onClick={() => void handleRollbackTask(task)}
+                        >
+                          Откатить
+                        </button>
+                      ) : null}
                       {canCancelTask(task) ? (
                         <button
                           type="button"
@@ -657,6 +795,16 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
                           </time>
                         </span>
                       ) : null}
+                      {isRollbackEligibleStatus(batch.status) ? (
+                        <button
+                          type="button"
+                          className="reconfig-tasks__btn reconfig-card__btn reconfig-card__btn--rollback reconfig-batch__rollback"
+                          disabled={rollbackBusy}
+                          onClick={() => void handleRollbackBatch(batch)}
+                        >
+                          Откатить
+                        </button>
+                      ) : null}
                     </div>
                     <ul className="reconfig-actions">
                       {batch.actions.map((action) => {
@@ -672,6 +820,16 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
                           <span className={pillClassForAction(action.status)}>
                             {actionStatusLabel(action.status)}
                           </span>
+                          {isRollbackEligibleStatus(action.status) ? (
+                            <button
+                              type="button"
+                              className="reconfig-tasks__btn reconfig-card__btn reconfig-card__btn--rollback reconfig-actions__rollback"
+                              disabled={rollbackBusy}
+                              onClick={() => void handleRollbackAction(action)}
+                            >
+                              Откатить
+                            </button>
+                          ) : null}
                           <span className="reconfig-actions__detail">
                             {describeAction(action)}
                           </span>

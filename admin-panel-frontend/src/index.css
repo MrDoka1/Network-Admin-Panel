@@ -55,6 +55,7 @@
   max-width: 100%;
   margin: 0;
   text-align: left;
+  height: 100svh;
   min-height: 100svh;
   display: flex;
   flex-direction: column;

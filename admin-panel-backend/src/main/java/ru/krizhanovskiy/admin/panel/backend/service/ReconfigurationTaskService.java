@@ -19,6 +19,8 @@ import ru.krizhanovskiy.admin.panel.backend.web.error.NotFoundException;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -37,7 +39,8 @@ public class ReconfigurationTaskService {
     private final UserAuthService userAuthService;
 
     public List<ReconfigurationTaskResponse> listSnapshot(Duration maxTotalWait, int maxRecords) {
-        List<ReconfigurationTask> tasks = kafkaReconfigAdapter.readTopicSnapshot(maxTotalWait, maxRecords);
+        List<ReconfigurationTask> tasks = latestKafkaTasksById(
+                kafkaReconfigAdapter.readTopicSnapshot(maxTotalWait, maxRecords));
         List<UUID> taskIds = tasks.stream().map(ReconfigurationTask::id).toList();
         Map<UUID, ReconfigurationTaskStatusService.TaskExecutionStatusBundle> statusByTaskId =
                 reconfigurationTaskStatusService.loadLatestByTaskIds(taskIds);
@@ -65,7 +68,7 @@ public class ReconfigurationTaskService {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             throw new IllegalStateException("Не удалось отправить задачу в Kafka: " + cause.getMessage(), cause);
         }
-        return reconfigurationTaskMapper.toResponse(task);
+        return taskResponseAfterStatusChange(task);
     }
 
     public ReconfigurationTaskResponse cancel(UUID taskId) {
@@ -127,5 +130,19 @@ public class ReconfigurationTaskService {
     private String resolveInitiatedBy() {
         User user = userAuthService.getCurrentUser();
         return applicationInstanceId + ":" + user.getFirstName() + "_" + user.getLastName();
+    }
+
+    /**
+     * В снимке топика одна задача может встречаться несколько раз (обновления в Kafka).
+     * Берём последнюю версию по порядку чтения — как в {@link #requireTaskFromKafka}.
+     */
+    private static List<ReconfigurationTask> latestKafkaTasksById(List<ReconfigurationTask> tasks) {
+        Map<UUID, ReconfigurationTask> byId = new LinkedHashMap<>();
+        for (ReconfigurationTask task : tasks) {
+            if (task.id() != null) {
+                byId.put(task.id(), task);
+            }
+        }
+        return new ArrayList<>(byId.values());
     }
 }

@@ -14,6 +14,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 @Service
 @RequiredArgsConstructor
@@ -33,12 +35,25 @@ public class ReconfigurationTaskStatusService {
             TaskExecutionStatusBundle bundle =
                     result.computeIfAbsent(row.getTaskId(), id -> new TaskExecutionStatusBundle());
             if (row.getBatchId() == null) {
-                bundle.setTaskStatus(row);
+                mergeLatest(bundle::taskStatus, bundle::setTaskStatus, row);
             } else {
-                bundle.batchStatuses().put(row.getBatchId(), row);
+                mergeLatest(
+                        () -> bundle.batchStatuses().get(row.getBatchId()),
+                        latest -> bundle.batchStatuses().put(row.getBatchId(), latest),
+                        row);
             }
         }
         return result;
+    }
+
+    private static void mergeLatest(
+            Supplier<ReconfigurationTaskStatus> current,
+            Consumer<ReconfigurationTaskStatus> setter,
+            ReconfigurationTaskStatus incoming) {
+        ReconfigurationTaskStatus existing = current.get();
+        if (existing == null || !existing.getUpdatedAt().isAfter(incoming.getUpdatedAt())) {
+            setter.accept(incoming);
+        }
     }
 
     @Transactional

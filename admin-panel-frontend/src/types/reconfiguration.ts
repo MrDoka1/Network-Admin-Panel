@@ -20,8 +20,11 @@ export type BatchCriticality = 'CRITICAL' | 'NORMAL' | 'OPTIONAL'
 export type ReconfigurationActionType =
   | 'ADD_VLAN'
   | 'DELETE_VLAN'
+  | 'CREATE_SUBINTERFACE'
+  | 'DELETE_SUBINTERFACE'
   | 'SET_ACCESS'
   | 'SET_TRUNK'
+  | 'EDIT_TRUNK'
   | 'SWITCH_VLAN'
 
 export interface ReconfigurationVlanAction {
@@ -89,6 +92,20 @@ export type ReconfigurationVlanActionCreatePayload =
       params: { vlanId: number }
     }
   | {
+      actionType: 'CREATE_SUBINTERFACE'
+      id: string
+      deviceId: string
+      status: ActionExecutionStatus
+      params: { parentInterface: string; vlanId: number; ipAddress: string }
+    }
+  | {
+      actionType: 'DELETE_SUBINTERFACE'
+      id: string
+      deviceId: string
+      status: ActionExecutionStatus
+      params: { parentInterface: string; vlanId: number }
+    }
+  | {
       actionType: 'SET_ACCESS'
       id: string
       deviceId: string
@@ -109,6 +126,19 @@ export type ReconfigurationVlanActionCreatePayload =
       }
       previousState?: ReconfigurationPortStateAccessPayload
       targetState?: ReconfigurationPortStateTrunkPayload
+    }
+  | {
+      actionType: 'EDIT_TRUNK'
+      id: string
+      deviceId: string
+      status: ActionExecutionStatus
+      params: {
+        port: string
+        allowedVlans: number[]
+        nativeVlanId: number | null
+      }
+      previousState?: ReconfigurationEditTrunkStatePayload
+      targetState?: ReconfigurationEditTrunkStatePayload
     }
   | {
       actionType: 'SWITCH_VLAN'
@@ -133,3 +163,8 @@ export type ReconfigurationPortStateTrunkPayload = {
 }
 
 export type ReconfigurationSwitchVlanPortStatePayload = { vlanId: number }
+
+export type ReconfigurationEditTrunkStatePayload = {
+  allowedVlans: number[]
+  nativeVlanId: number | null
+}

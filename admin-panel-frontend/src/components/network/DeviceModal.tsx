@@ -10,7 +10,6 @@ import {
   addTrunkAllowedVlan,
   createDevice,
   createDeviceInterface,
-  createVlan,
   deleteDeviceInterface,
   deleteInterfaceVlan,
   fetchInterfacesForDevice,
@@ -270,10 +269,6 @@ export function DeviceModal({
   const [newPortKind, setNewPortKind] = useState<'physical' | 'subif'>('physical')
   const [newParentId, setNewParentId] = useState('')
   const [newVlanId, setNewVlanId] = useState('')
-  const [inlineVlanVid, setInlineVlanVid] = useState('')
-  const [inlineVlanName, setInlineVlanName] = useState('')
-  const [vlanInlineBusy, setVlanInlineBusy] = useState(false)
-  const [vlanInlineError, setVlanInlineError] = useState<string | null>(null)
   const [newPortIpv4, setNewPortIpv4] = useState('')
   const [newPortMask, setNewPortMask] = useState('24')
   const [savingNewPort, setSavingNewPort] = useState(false)
@@ -309,17 +304,6 @@ export function DeviceModal({
     }
   }, [])
 
-  const refreshVlansSilently = useCallback(async () => {
-    try {
-      const v = await fetchVlans()
-      setVlans(v)
-      setVlansError(null)
-    } catch (e) {
-      setVlansError(e instanceof Error ? e.message : String(e))
-      setVlans([])
-    }
-  }, [])
-
   useEffect(() => {
     if (!open) return
     setError(null)
@@ -343,9 +327,6 @@ export function DeviceModal({
       setNewPortKind('physical')
       setNewParentId('')
       setNewVlanId('')
-      setInlineVlanVid('')
-      setInlineVlanName('')
-      setVlanInlineError(null)
       setNewPortIpv4('')
       setNewPortMask('24')
       setVlans([])
@@ -539,20 +520,19 @@ export function DeviceModal({
 
   const addPort = useCallback(async () => {
     if (!device?.id) return
-    const name = newPortName.trim()
-    if (!name) {
-      setPortsError('Введите имя порта.')
-      return
-    }
     if (newPortKind === 'subif') {
       if (!newParentId) {
         setPortsError('Выберите родительский порт.')
         return
       }
       if (!newVlanId) {
-        setPortsError(
-          'Выберите VLAN либо создайте его полем «VID» выше.',
-        )
+        setPortsError('Выберите VLAN.')
+        return
+      }
+    } else {
+      const name = newPortName.trim()
+      if (!name) {
+        setPortsError('Введите имя порта.')
         return
       }
     }
@@ -574,14 +554,13 @@ export function DeviceModal({
       const created =
         newPortKind === 'subif'
           ? await createDeviceInterface(device.id, {
-              name,
               adminStatus: newPortAdmin,
               parentInterfaceId: newParentId,
               dot1qVlanId: Number(newVlanId),
               ipAddress: combinedL3,
             })
           : await createDeviceInterface(device.id, {
-              name,
+              name: newPortName.trim(),
               adminStatus: newPortAdmin,
               ipAddress: combinedL3,
             })
@@ -611,44 +590,13 @@ export function DeviceModal({
     notifyPortsChanged,
   ])
 
-  const addVlanToModel = useCallback(async () => {
-    const raw = inlineVlanVid.trim()
-    const id = Number(raw)
-    if (raw === '' || !Number.isInteger(id) || id < 1 || id > 4094) {
-      setVlanInlineError('Укажите номер VLAN от 1 до 4094.')
-      return
-    }
-    setVlanInlineBusy(true)
-    setVlanInlineError(null)
-    try {
-      const created = await createVlan({
-        vlanId: id,
-        ...(inlineVlanName.trim() ? { name: inlineVlanName.trim() } : {}),
-      })
-      await refreshVlansSilently()
-      setInlineVlanVid('')
-      setInlineVlanName('')
-      if (newPortKind === 'subif') {
-        setNewVlanId(String(created.vlanId))
-      }
-    } catch (e) {
-      setVlanInlineError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setVlanInlineBusy(false)
-    }
-  }, [
-    inlineVlanVid,
-    inlineVlanName,
-    newPortKind,
-    refreshVlansSilently,
-  ])
-
   const portsBusy =
     submitting ||
     savingNewPort ||
     savingEditPort ||
-    deletingPortId !== null ||
-    vlanInlineBusy
+    deletingPortId !== null
+
+  const isRouter = form.deviceType === 'ROUTER'
 
   const peerByInterfaceId = useMemo(() => {
     if (!linkContext) return null
@@ -669,7 +617,38 @@ export function DeviceModal({
     [ports],
   )
 
+  const usedVlanIdsOnParent = useMemo(() => {
+    if (!newParentId) return new Set<number>()
+    return new Set(
+      ports
+        .filter(
+          (p) => p.parentInterfaceId === newParentId && p.dot1qVlanId != null,
+        )
+        .map((p) => p.dot1qVlanId as number),
+    )
+  }, [ports, newParentId])
+
+  const vlansForNewSubif = useMemo(
+    () => vlans.filter((v) => !usedVlanIdsOnParent.has(v.vlanId)),
+    [vlans, usedVlanIdsOnParent],
+  )
+
   const soleRootPortId = rootPorts.length === 1 ? rootPorts[0].id : null
+
+  useEffect(() => {
+    if (!isRouter && newPortKind === 'subif') {
+      setNewPortKind('physical')
+      setNewParentId('')
+      setNewVlanId('')
+    }
+  }, [isRouter, newPortKind])
+
+  useEffect(() => {
+    if (!newVlanId) return
+    if (!vlansForNewSubif.some((v) => String(v.vlanId) === newVlanId)) {
+      setNewVlanId('')
+    }
+  }, [newVlanId, vlansForNewSubif])
 
   useEffect(() => {
     if (!open || mode !== 'edit') return
@@ -831,45 +810,6 @@ export function DeviceModal({
                   VLAN: {vlansError}
                 </p>
               ) : null}
-              <div className="link-modal__quick device-modal__vlan-inline">
-                <div className="link-modal__quick-row">
-                  <input
-                    type="number"
-                    min={1}
-                    max={4094}
-                    step={1}
-                    inputMode="numeric"
-                    placeholder="VID"
-                    value={inlineVlanVid}
-                    onChange={(e) => setInlineVlanVid(e.target.value)}
-                    disabled={portsBusy}
-                    aria-label="Номер нового VLAN"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Имя VLAN (опц.)"
-                    maxLength={256}
-                    autoComplete="off"
-                    value={inlineVlanName}
-                    onChange={(e) => setInlineVlanName(e.target.value)}
-                    disabled={portsBusy}
-                    aria-label="Имя нового VLAN"
-                  />
-                  <button
-                    type="button"
-                    className="device-modal__btn device-modal__btn--secondary"
-                    disabled={portsBusy}
-                    onClick={() => void addVlanToModel()}
-                  >
-                    {vlanInlineBusy ? '…' : 'Создать VLAN'}
-                  </button>
-                </div>
-                {vlanInlineError ? (
-                  <p className="device-modal__error" role="alert">
-                    {vlanInlineError}
-                  </p>
-                ) : null}
-              </div>
               {portsError ? (
                 <p className="device-modal__error" role="alert">
                   {portsError}
@@ -1283,16 +1223,18 @@ export function DeviceModal({
                     />
                     Физический порт
                   </label>
-                  <label className="device-modal__ports-radio-line">
-                    <input
-                      type="radio"
-                      name="new-port-kind"
-                      checked={newPortKind === 'subif'}
-                      onChange={() => setNewPortKind('subif')}
-                      disabled={portsBusy}
-                    />
-                    Сабинтерфейс (802.1Q)
-                  </label>
+                  {isRouter ? (
+                    <label className="device-modal__ports-radio-line">
+                      <input
+                        type="radio"
+                        name="new-port-kind"
+                        checked={newPortKind === 'subif'}
+                        onChange={() => setNewPortKind('subif')}
+                        disabled={portsBusy}
+                      />
+                      Сабинтерфейс (802.1Q)
+                    </label>
+                  ) : null}
                 </div>
                 <div className="device-modal__ports-new-line">
                   {newPortKind === 'subif' ? (
@@ -1300,7 +1242,10 @@ export function DeviceModal({
                       <select
                         className="device-modal__new-select"
                         value={newParentId}
-                        onChange={(e) => setNewParentId(e.target.value)}
+                        onChange={(e) => {
+                          setNewParentId(e.target.value)
+                          setNewVlanId('')
+                        }}
                         disabled={portsBusy || rootPorts.length === 0}
                         aria-label="Родительский порт"
                       >
@@ -1315,11 +1260,21 @@ export function DeviceModal({
                         className="device-modal__new-select"
                         value={newVlanId}
                         onChange={(e) => setNewVlanId(e.target.value)}
-                        disabled={portsBusy || vlans.length === 0}
+                        disabled={
+                          portsBusy ||
+                          !newParentId ||
+                          vlansForNewSubif.length === 0
+                        }
                         aria-label="VLAN"
                       >
-                        <option value="">VLAN…</option>
-                        {vlans.map((v) => (
+                        <option value="">
+                          {!newParentId
+                            ? 'VLAN…'
+                            : vlansForNewSubif.length === 0
+                              ? 'Нет свободных VLAN'
+                              : 'VLAN…'}
+                        </option>
+                        {vlansForNewSubif.map((v) => (
                           <option key={v.vlanId} value={String(v.vlanId)}>
                             {v.vlanId}
                             {v.name ? ` · ${v.name}` : ''}
@@ -1328,17 +1283,19 @@ export function DeviceModal({
                       </select>
                     </>
                   ) : null}
-                  <input
-                    className="device-modal__new-name"
-                    type="text"
-                    placeholder="Имя (Gi0/1 или v10)"
-                    value={newPortName}
-                    maxLength={128}
-                    autoComplete="off"
-                    onChange={(e) => setNewPortName(e.target.value)}
-                    disabled={portsBusy}
-                    aria-label="Имя нового порта"
-                  />
+                  {newPortKind === 'physical' ? (
+                    <input
+                      className="device-modal__new-name"
+                      type="text"
+                      placeholder="Имя (Gi0/1)"
+                      value={newPortName}
+                      maxLength={128}
+                      autoComplete="off"
+                      onChange={(e) => setNewPortName(e.target.value)}
+                      disabled={portsBusy}
+                      aria-label="Имя нового порта"
+                    />
+                  ) : null}
                   <div className="device-modal__l3-inline device-modal__l3-inline--new">
                     <input
                       className="device-modal__new-ipv4"

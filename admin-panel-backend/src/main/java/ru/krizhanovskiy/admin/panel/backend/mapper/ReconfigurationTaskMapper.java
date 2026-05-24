@@ -4,8 +4,15 @@ import org.springframework.stereotype.Component;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationAddVlanAction;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationAddVlanParams;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationBatchView;
+import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationCreateSubinterfaceAction;
+import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationCreateSubinterfaceParams;
+import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationDeleteSubinterfaceAction;
+import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationDeleteSubinterfaceParams;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationDeleteVlanAction;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationDeleteVlanParams;
+import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationEditTrunkAction;
+import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationEditTrunkParams;
+import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationEditTrunkState;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationPortStateAccess;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationPortStateTrunk;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationSetAccessAction;
@@ -19,8 +26,15 @@ import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationTask
 import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationVlanAction;
 import ru.krizhanovskiy.admin.panel.backend.kafka.dto.AddVlanParams;
 import ru.krizhanovskiy.admin.panel.backend.kafka.dto.AddVlanReconfigAction;
+import ru.krizhanovskiy.admin.panel.backend.kafka.dto.CreateSubinterfaceParams;
+import ru.krizhanovskiy.admin.panel.backend.kafka.dto.CreateSubinterfaceReconfigAction;
+import ru.krizhanovskiy.admin.panel.backend.kafka.dto.DeleteSubinterfaceParams;
+import ru.krizhanovskiy.admin.panel.backend.kafka.dto.DeleteSubinterfaceReconfigAction;
 import ru.krizhanovskiy.admin.panel.backend.kafka.dto.DeleteVlanParams;
 import ru.krizhanovskiy.admin.panel.backend.kafka.dto.DeleteVlanReconfigAction;
+import ru.krizhanovskiy.admin.panel.backend.kafka.dto.EditTrunkParams;
+import ru.krizhanovskiy.admin.panel.backend.kafka.dto.EditTrunkReconfigAction;
+import ru.krizhanovskiy.admin.panel.backend.kafka.dto.EditTrunkState;
 import ru.krizhanovskiy.admin.panel.backend.kafka.dto.PortStateAccess;
 import ru.krizhanovskiy.admin.panel.backend.kafka.dto.PortStateTrunk;
 import ru.krizhanovskiy.admin.panel.backend.kafka.dto.ReconfigurationBatch;
@@ -164,6 +178,16 @@ public class ReconfigurationTaskMapper {
                     a.targetState() != null ? toKafkaPortStateTrunk(a.targetState()) : null
             );
         }
+        if (action instanceof ReconfigurationEditTrunkAction a) {
+            return new EditTrunkReconfigAction(
+                    a.id(),
+                    a.deviceId(),
+                    a.status(),
+                    new EditTrunkParams(a.params().port(), a.params().allowedVlans(), a.params().nativeVlanId()),
+                    a.previousState() != null ? toKafkaEditTrunkState(a.previousState()) : null,
+                    a.targetState() != null ? toKafkaEditTrunkState(a.targetState()) : null
+            );
+        }
         if (action instanceof ReconfigurationSwitchVlanAction a) {
             return new SwitchVlanReconfigAction(
                     a.id(),
@@ -172,6 +196,26 @@ public class ReconfigurationTaskMapper {
                     new SwitchVlanParams(a.params().port(), a.params().targetVlanId()),
                     a.previousState() != null ? toKafkaSwitchVlanPortState(a.previousState()) : null,
                     a.targetState() != null ? toKafkaSwitchVlanPortState(a.targetState()) : null
+            );
+        }
+        if (action instanceof ReconfigurationCreateSubinterfaceAction a) {
+            return new CreateSubinterfaceReconfigAction(
+                    a.id(),
+                    a.deviceId(),
+                    a.status(),
+                    new CreateSubinterfaceParams(
+                            a.params().parentInterface(),
+                            a.params().vlanId(),
+                            a.params().ipAddress()
+                    )
+            );
+        }
+        if (action instanceof ReconfigurationDeleteSubinterfaceAction a) {
+            return new DeleteSubinterfaceReconfigAction(
+                    a.id(),
+                    a.deviceId(),
+                    a.status(),
+                    new DeleteSubinterfaceParams(a.params().parentInterface(), a.params().vlanId())
             );
         }
         throw new IllegalArgumentException("Неизвестный тип действия: " + action.getClass().getName());
@@ -210,6 +254,16 @@ public class ReconfigurationTaskMapper {
                     a.targetState() != null ? toApiPortStateTrunk(a.targetState()) : null
             );
         }
+        if (action instanceof EditTrunkReconfigAction a) {
+            return new ReconfigurationEditTrunkAction(
+                    a.id(),
+                    a.deviceId(),
+                    a.status(),
+                    new ReconfigurationEditTrunkParams(a.params().port(), a.params().allowedVlans(), a.params().nativeVlanId()),
+                    a.previousState() != null ? toApiEditTrunkState(a.previousState()) : null,
+                    a.targetState() != null ? toApiEditTrunkState(a.targetState()) : null
+            );
+        }
         if (action instanceof SwitchVlanReconfigAction a) {
             return new ReconfigurationSwitchVlanAction(
                     a.id(),
@@ -218,6 +272,29 @@ public class ReconfigurationTaskMapper {
                     new ReconfigurationSwitchVlanParams(a.params().port(), a.params().targetVlanId()),
                     a.previousState() != null ? toApiSwitchVlanPortState(a.previousState()) : null,
                     a.targetState() != null ? toApiSwitchVlanPortState(a.targetState()) : null
+            );
+        }
+        if (action instanceof CreateSubinterfaceReconfigAction a) {
+            return new ReconfigurationCreateSubinterfaceAction(
+                    a.id(),
+                    a.deviceId(),
+                    a.status(),
+                    new ReconfigurationCreateSubinterfaceParams(
+                            a.params().parentInterface(),
+                            a.params().vlanId(),
+                            a.params().ipAddress()
+                    )
+            );
+        }
+        if (action instanceof DeleteSubinterfaceReconfigAction a) {
+            return new ReconfigurationDeleteSubinterfaceAction(
+                    a.id(),
+                    a.deviceId(),
+                    a.status(),
+                    new ReconfigurationDeleteSubinterfaceParams(
+                            a.params().parentInterface(),
+                            a.params().vlanId()
+                    )
             );
         }
         throw new IllegalArgumentException("Неизвестный тип действия: " + action.getClass().getName());
@@ -245,5 +322,13 @@ public class ReconfigurationTaskMapper {
 
     private static ReconfigurationSwitchVlanPortState toApiSwitchVlanPortState(SwitchVlanPortState s) {
         return new ReconfigurationSwitchVlanPortState(s.vlanId());
+    }
+
+    private static EditTrunkState toKafkaEditTrunkState(ReconfigurationEditTrunkState s) {
+        return new EditTrunkState(s.allowedVlans(), s.nativeVlanId());
+    }
+
+    private static ReconfigurationEditTrunkState toApiEditTrunkState(EditTrunkState s) {
+        return new ReconfigurationEditTrunkState(s.allowedVlans(), s.nativeVlanId());
     }
 }

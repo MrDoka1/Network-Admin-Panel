@@ -34,7 +34,7 @@ const CONFIG: Record<
   DeviceType,
   {
     title: string
-    subtitle: string
+    // subtitle: string
     emptyTitle: string
     emptyText: string
     addFirst: string
@@ -44,8 +44,8 @@ const CONFIG: Record<
 > = {
   ROUTER: {
     title: 'Маршрутизаторы',
-    subtitle:
-      'Маршрутизаторы инфраструктуры: управление, порты, L3 и связи с другими узлами. Позиции на схеме — вкладка «Топология».',
+    // subtitle:
+    //   'Маршрутизаторы инфраструктуры: управление, порты, L3 и связи с другими узлами. Позиции на схеме — вкладка «Топология».',
     emptyTitle: 'Пока нет маршрутизаторов',
     emptyText:
       'Добавьте устройство с IP управления и настройте порты в карточке узла.',
@@ -55,8 +55,8 @@ const CONFIG: Record<
   },
   SWITCH: {
     title: 'Коммутаторы',
-    subtitle:
-      'Коммутаторы L2/L3: порты, VLAN на интерфейсах и линки к соседним устройствам. VLAN на устройстве — вкладка «VLAN».',
+    // subtitle:
+    //   'Коммутаторы L2/L3: порты, VLAN на интерфейсах и линки к соседним устройствам. VLAN на устройстве — вкладка «VLAN».',
     emptyTitle: 'Пока нет коммутаторов',
     emptyText:
       'Добавьте коммутатор, назначьте порты и при необходимости свяжите их линком.',
@@ -445,7 +445,15 @@ export const NetworkDeviceInventoryView = memo(function NetworkDeviceInventoryVi
   const portCount = useMemo(() => {
     let n = 0
     for (const d of typedDevices) {
-      n += interfacesByDevice.get(d.id)?.length ?? 0
+      n += interfacesByDevice.get(d.id)?.filter(i => i.parentInterfaceId == null).length ?? 0
+    }
+    return n
+  }, [typedDevices, interfacesByDevice])
+
+  const subInterfaceCount = useMemo(() => {
+    let n = 0
+    for (const d of typedDevices) {
+      n += interfacesByDevice.get(d.id)?.filter(i => i.parentInterfaceId != null).length ?? 0
     }
     return n
   }, [typedDevices, interfacesByDevice])
@@ -474,7 +482,7 @@ export const NetworkDeviceInventoryView = memo(function NetworkDeviceInventoryVi
       <header className="net-inv__header">
         <div className="net-inv__title-block">
           <h1>{cfg.title}</h1>
-          <p className="net-inv__subtitle">{cfg.subtitle}</p>
+          {/*<p className="net-inv__subtitle">{cfg.subtitle}</p>*/}
         </div>
         <div className="net-inv__actions">
           <button
@@ -514,6 +522,12 @@ export const NetworkDeviceInventoryView = memo(function NetworkDeviceInventoryVi
             <span className="net-inv__stat-value">{portCount}</span>
             <span className="net-inv__stat-label">портов</span>
           </div>
+          {deviceType == 'ROUTER' ?
+              <div className="net-inv__stat">
+                <span className="net-inv__stat-value">{subInterfaceCount}</span>
+                <span className="net-inv__stat-label">сабинтерфейсов</span>
+              </div> : null
+          }
           <div className="net-inv__stat">
             <span className="net-inv__stat-value">{relevantLinks.length}</span>
             <span className="net-inv__stat-label">линков</span>

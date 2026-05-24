@@ -36,4 +36,7 @@ public class Vlan {
     @Enumerated(EnumType.STRING)
     @Column(name = "oper_status", length = 32)
     private VlanOperStatus operStatus;
+
+    @Column(name = "is_protected", nullable = false)
+    private boolean isProtected = false;
 }

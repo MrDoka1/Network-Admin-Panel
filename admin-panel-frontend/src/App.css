@@ -1,10 +1,17 @@
 .app-shell {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  height: 100svh;
   min-height: 100svh;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .app-shell__nav {
+  position: sticky;
+  top: 0;
+  z-index: 200;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -50,4 +57,15 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* Страницы заполняют область под навигацией; прокрутка только внутри контента */
+.app-shell__main > * {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  text-align: left;
 }

@@ -41,3 +41,12 @@ export function reconfigSectionFromPathname(pathname: string): ReconfigSection |
 export function reconfigSectionPath(section: ReconfigSection): string {
   return section === 'list' ? TAB_PATH.reconfigTasks : RECONFIG_TASKS_CREATE_PATH
 }
+
+export function reconfigCreateTabPath(tabId: string): string {
+  return `${RECONFIG_TASKS_CREATE_PATH}?tab=${encodeURIComponent(tabId)}`
+}
+
+export function reconfigCreateTabIdFromSearch(search: string): string | null {
+  const id = new URLSearchParams(search).get('tab')
+  return id && id.trim() ? id.trim() : null
+}
