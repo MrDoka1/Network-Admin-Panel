@@ -21,6 +21,7 @@ import {
   type MouseEvent,
 } from 'react'
 import {
+  deleteLink,
   fetchEndpointAttachments,
   fetchEndpointDevices,
   fetchEndpointInterfaces,
@@ -612,6 +613,19 @@ export const NetworkGraphView = memo(function NetworkGraphView() {
     void load()
   }, [load])
 
+  const handleDeleteLink = useCallback(
+    async (link: Link) => {
+      if (!window.confirm('Удалить этот линк?')) return
+      try {
+        await deleteLink(link.id)
+        await load()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+      }
+    },
+    [load],
+  )
+
   const [layoutPositions, setLayoutPositions] = useState<
     Map<string, { x: number; y: number }>
   >(() => readLayoutFromStorage())
@@ -965,18 +979,29 @@ export const NetworkGraphView = memo(function NetworkGraphView() {
             </dl>
           ) : null}
           {selection?.kind === 'link' ? (
-            <dl>
-              <dt>Линк</dt>
-              <dd>{selection.link.id}</dd>
-              <dt>Интерфейс A</dt>
-              <dd>
-                {selection.ifaceA.name} ({selection.ifaceA.adminStatus})
-              </dd>
-              <dt>Интерфейс B</dt>
-              <dd>
-                {selection.ifaceB.name} ({selection.ifaceB.adminStatus})
-              </dd>
-            </dl>
+            <>
+              <dl>
+                <dt>Линк</dt>
+                <dd>{selection.link.id}</dd>
+                <dt>Интерфейс A</dt>
+                <dd>
+                  {selection.ifaceA.name} ({selection.ifaceA.adminStatus})
+                </dd>
+                <dt>Интерфейс B</dt>
+                <dd>
+                  {selection.ifaceB.name} ({selection.ifaceB.adminStatus})
+                </dd>
+              </dl>
+              <div className="network-graph__aside-actions">
+                <button
+                  type="button"
+                  className="network-graph__btn network-graph__btn--danger network-graph__btn--block"
+                  onClick={() => void handleDeleteLink(selection.link)}
+                >
+                  Удалить
+                </button>
+              </div>
+            </>
           ) : null}
           {selection?.kind === 'attachment' ? (
             <dl>
@@ -1021,6 +1046,9 @@ export const NetworkGraphView = memo(function NetworkGraphView() {
             links,
             allInterfaces: interfaces,
             devices,
+            attachments,
+            endpointInterfaces,
+            endpointDevices,
           }}
           onClose={() => setDeviceModal(null)}
           onPortsChanged={() => {

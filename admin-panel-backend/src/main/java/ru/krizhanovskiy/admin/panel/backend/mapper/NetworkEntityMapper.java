@@ -29,6 +29,7 @@ public interface NetworkEntityMapper {
 
     NetworkDeviceResponse toNetworkDeviceResponse(NetworkDevice entity);
 
+    @Mapping(target = "isProtected", source = "protected")
     VlanResponse toVlanResponse(Vlan entity);
 
     @Mapping(target = "deviceId", source = "device.id")

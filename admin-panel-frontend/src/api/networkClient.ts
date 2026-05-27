@@ -23,6 +23,7 @@ import type {
   TrunkAllowedVlanEntry,
   Vlan,
   VlanCreatePayload,
+  VlanUpdatePayload,
 } from '../types/network'
 
 import { apiFetch } from './http'
@@ -115,8 +116,36 @@ export async function createVlan(payload: VlanCreatePayload): Promise<Vlan> {
   if (payload.operStatus !== undefined && payload.operStatus !== null) {
     body.operStatus = payload.operStatus
   }
+  if (payload.isProtected !== undefined) {
+    body.isProtected = payload.isProtected
+  }
   const res = await apiFetch(`/api/v1/network/vlans`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return parseJson<Vlan>(res)
+}
+
+export async function updateVlan(
+  vlanId: number,
+  payload: VlanUpdatePayload,
+): Promise<Vlan> {
+  const body: Record<string, unknown> = {}
+  if (payload.name !== undefined) {
+    body.name = payload.name
+  }
+  if (payload.adminStatus !== undefined) {
+    body.adminStatus = payload.adminStatus
+  }
+  if (payload.operStatus !== undefined) {
+    body.operStatus = payload.operStatus
+  }
+  if (payload.isProtected !== undefined) {
+    body.isProtected = payload.isProtected
+  }
+  const res = await apiFetch(`/api/v1/network/vlans/${vlanId}`, {
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })

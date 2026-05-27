@@ -14,6 +14,7 @@ import {
   fetchDevices,
   fetchVlans,
   createVlan,
+  updateVlan,
 } from '../../api/networkClient'
 import type { DeviceVlan, NetworkDevice, Vlan } from '../../types/network'
 import { VlanMatrixCell, type VlanMatrixPending } from './VlanMatrixCell'
@@ -51,6 +52,9 @@ export const VlanMatrixView = memo(function VlanMatrixView() {
   const [pending, setPending] = useState<VlanMatrixPending | null>(null)
   const [toggling, setToggling] = useState(false)
   const [toggleError, setToggleError] = useState<string | null>(null)
+
+  const [protectTogglingId, setProtectTogglingId] = useState<number | null>(null)
+  const [protectError, setProtectError] = useState<string | null>(null)
   const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const clearPendingTimer = useCallback(() => {
@@ -195,6 +199,26 @@ export const VlanMatrixView = memo(function VlanMatrixView() {
     [newVlanId, newVlanName, newVlanProtected],
   )
 
+  const toggleVlanProtected = useCallback(async (vlan: Vlan) => {
+    if (protectTogglingId != null) return
+    setProtectError(null)
+    setProtectTogglingId(vlan.vlanId)
+    try {
+      const updated = await updateVlan(vlan.vlanId, {
+        isProtected: !vlan.isProtected,
+      })
+      setVlans((prev) =>
+        sortVlans(
+          prev.map((v) => (v.vlanId === updated.vlanId ? updated : v)),
+        ),
+      )
+    } catch (err) {
+      setProtectError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setProtectTogglingId(null)
+    }
+  }, [protectTogglingId])
+
   return (
     <div className="vlan-matrix">
       <header className="vlan-matrix__header">
@@ -259,6 +283,11 @@ export const VlanMatrixView = memo(function VlanMatrixView() {
             {toggleError}
           </p>
         ) : null}
+        {protectError ? (
+          <p className="vlan-matrix__error" role="alert">
+            {protectError}
+          </p>
+        ) : null}
       </header>
 
       {loading ? (
@@ -282,21 +311,43 @@ export const VlanMatrixView = memo(function VlanMatrixView() {
                   Устройство
                 </th>
                 {sortedVlans.map((v) => (
-                  <th key={v.vlanId} className="vlan-matrix__col-head" scope="col">
-                    {v.vlanId}
-                    {v.isProtected ? (
-                      <span
-                        className="vlan-matrix__col-protected"
-                        title="Защищённый VLAN"
-                      >
-                        зщ.
-                      </span>
-                    ) : null}
-                    {v.name ? (
-                      <span className="vlan-matrix__col-name" title={v.name}>
-                        {v.name}
-                      </span>
-                    ) : null}
+                  <th
+                    key={v.vlanId}
+                    className={
+                      v.isProtected
+                        ? 'vlan-matrix__col-head vlan-matrix__col-head--protected'
+                        : 'vlan-matrix__col-head'
+                    }
+                    scope="col"
+                  >
+                    <button
+                      type="button"
+                      className="vlan-matrix__col-head-btn"
+                      disabled={protectTogglingId === v.vlanId}
+                      title={
+                        v.isProtected
+                          ? `VLAN ${v.vlanId}: защищён. Нажмите, чтобы снять защиту`
+                          : `VLAN ${v.vlanId}. Нажмите, чтобы сделать защищённым`
+                      }
+                      aria-label={
+                        protectTogglingId === v.vlanId
+                          ? `VLAN ${v.vlanId}: обновление защиты…`
+                          : v.isProtected
+                            ? `VLAN ${v.vlanId}: снять защиту`
+                            : `VLAN ${v.vlanId}: сделать защищённым`
+                      }
+                      onClick={() => void toggleVlanProtected(v)}
+                    >
+                      <span className="vlan-matrix__col-vid">{v.vlanId}</span>
+                      {v.name ? (
+                        <span className="vlan-matrix__col-name" title={v.name}>
+                          {v.name}
+                        </span>
+                      ) : null}
+                      {protectTogglingId === v.vlanId ? (
+                        <span className="vlan-matrix__col-head-busy">…</span>
+                      ) : null}
+                    </button>
                   </th>
                 ))}
               </tr>
@@ -314,6 +365,7 @@ export const VlanMatrixView = memo(function VlanMatrixView() {
                       vlanId={v.vlanId}
                       hostname={d.hostname}
                       present={presence.has(presenceKey(d.id, v.vlanId))}
+                      vlanProtected={v.isProtected}
                       pending={pending}
                       toggling={toggling}
                       onActivate={handleCellActivate}

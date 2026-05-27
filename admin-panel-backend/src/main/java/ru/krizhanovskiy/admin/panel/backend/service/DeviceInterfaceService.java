@@ -11,6 +11,9 @@ import ru.krizhanovskiy.admin.panel.backend.domain.DeviceInterface;
 import ru.krizhanovskiy.admin.panel.backend.domain.Vlan;
 import ru.krizhanovskiy.admin.panel.backend.mapper.NetworkEntityMapper;
 import ru.krizhanovskiy.admin.panel.backend.repository.DeviceInterfaceRepository;
+import ru.krizhanovskiy.admin.panel.backend.repository.EndpointNetworkAttachmentRepository;
+import ru.krizhanovskiy.admin.panel.backend.repository.InterfaceVlanRepository;
+import ru.krizhanovskiy.admin.panel.backend.repository.LinkRepository;
 import ru.krizhanovskiy.admin.panel.backend.repository.TrunkAllowedVlanRepository;
 import ru.krizhanovskiy.admin.panel.backend.repository.VlanRepository;
 import ru.krizhanovskiy.admin.panel.backend.web.error.ConflictException;
@@ -33,7 +36,10 @@ public class DeviceInterfaceService {
     private final DeviceInterfaceRepository deviceInterfaceRepository;
     private final NetworkDeviceService networkDeviceService;
     private final VlanRepository vlanRepository;
+    private final InterfaceVlanRepository interfaceVlanRepository;
     private final TrunkAllowedVlanRepository trunkAllowedVlanRepository;
+    private final EndpointNetworkAttachmentRepository endpointNetworkAttachmentRepository;
+    private final LinkRepository linkRepository;
     private final NetworkEntityMapper networkEntityMapper;
 
     @Transactional(readOnly = true)
@@ -133,6 +139,12 @@ public class DeviceInterfaceService {
         if (!deviceInterfaceRepository.existsById(id)) {
             throw new NotFoundException("Интерфейс не найден: " + id);
         }
+        // Явно удаляем зависимые записи до удаления интерфейса, чтобы избежать
+        // ошибок flush в Hibernate при наличии управляемых зависимых сущностей.
+        linkRepository.deleteByInterfaceA_IdOrInterfaceB_Id(id, id);
+        endpointNetworkAttachmentRepository.deleteByNetworkInterface_Id(id);
+        trunkAllowedVlanRepository.deleteByDeviceInterface_Id(id);
+        interfaceVlanRepository.deleteByDeviceInterface_Id(id);
         deviceInterfaceRepository.deleteById(id);
     }
 

@@ -3,6 +3,10 @@ services:
     build:
       context: ./admin-panel-backend
       dockerfile: Dockerfile
+      # Локальный Maven cache: ~/.m2/repository (или MAVEN_REPO_CACHE в .env).
+      # Требуется BuildKit (включён по умолчанию в Docker Desktop).
+      additional_contexts:
+        m2repo: ${MAVEN_REPO_CACHE:-~/.m2/repository}
     container_name: admin-panel-backend
     depends_on:
       postgres:

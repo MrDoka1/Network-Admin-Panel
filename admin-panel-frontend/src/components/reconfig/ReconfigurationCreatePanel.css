@@ -1,0 +1,97 @@
+.reconfig-create-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.reconfig-create-panel__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  flex-shrink: 0;
+}
+
+.reconfig-create-panel__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 14rem;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background: var(--code-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.reconfig-create-panel__tab:hover {
+  color: var(--text-h);
+  background: var(--bg);
+}
+
+.reconfig-create-panel__tab--active {
+  background: var(--bg);
+  border-color: var(--accent-border);
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+.reconfig-create-panel__tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reconfig-create-panel__tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.65;
+}
+
+.reconfig-create-panel__tab-close:hover {
+  opacity: 1;
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+}
+
+.reconfig-create-panel__tab-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-bottom: 2px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.reconfig-create-panel__tab-add:hover {
+  border-color: var(--accent-border);
+  color: var(--text-h);
+}
+
+.reconfig-create-panel > .reconfig-builder {
+  flex: 1;
+  min-height: 0;
+}

@@ -21,6 +21,11 @@ import {
   upsertInterfaceVlan,
 } from '../../api/networkClient'
 import type {
+  EndpointDevice,
+  EndpointDeviceInterface,
+  EndpointNetworkAttachment,
+} from '../../types/endpoint'
+import type {
   DeviceInterface,
   DeviceInterfaceVlanBinding,
   DeviceType,
@@ -36,6 +41,10 @@ import {
   parseMaskBits,
   splitHostAndCidrMask,
 } from '../../utils/ipv4Cidr'
+import {
+  formatNetworkPortConnections,
+  portConnectionCellLabel,
+} from '../../utils/portConnectionLabel'
 import { formatPhysicalL2Summary } from '../../utils/portVlanLabels'
 import './DeviceModal.css'
 
@@ -202,30 +211,9 @@ export type DeviceModalLinkContext = {
   links: Link[]
   allInterfaces: DeviceInterface[]
   devices: NetworkDevice[]
-}
-
-/** Текст «hostname · порт» для удалённого конца линка(ов), или null если нет линка */
-function formatPortPeers(
-  interfaceId: string,
-  ctx: DeviceModalLinkContext | undefined,
-): string | null {
-  if (!ctx) return null
-  const ifaceById = new Map(ctx.allInterfaces.map((i) => [i.id, i]))
-  const deviceById = new Map(ctx.devices.map((d) => [d.id, d]))
-  const parts: string[] = []
-  for (const link of ctx.links) {
-    let otherId: string | null = null
-    if (link.interfaceAId === interfaceId) otherId = link.interfaceBId
-    else if (link.interfaceBId === interfaceId) otherId = link.interfaceAId
-    else continue
-    const oi = ifaceById.get(otherId)
-    if (!oi) continue
-    const od = deviceById.get(oi.deviceId)
-    const host = od?.hostname ?? oi.deviceId
-    parts.push(`${host} · ${oi.name}`)
-  }
-  if (parts.length === 0) return null
-  return parts.join('; ')
+  attachments?: EndpointNetworkAttachment[]
+  endpointInterfaces?: EndpointDeviceInterface[]
+  endpointDevices?: EndpointDevice[]
 }
 
 type Props = {
@@ -602,7 +590,7 @@ export function DeviceModal({
     if (!linkContext) return null
     const m = new Map<string, string | null>()
     for (const iface of ports) {
-      m.set(iface.id, formatPortPeers(iface.id, linkContext))
+      m.set(iface.id, formatNetworkPortConnections(iface.id, linkContext))
     }
     return m
   }, [linkContext, ports])
@@ -1123,7 +1111,11 @@ export function DeviceModal({
                               </select>
                             </td>
                             <td className="device-modal__ports-peer">
-                              {peerByInterfaceId?.get(iface.id) ?? '—'}
+                              {portConnectionCellLabel(
+                                isSub,
+                                peerByInterfaceId?.get(iface.id),
+                                !!linkContext,
+                              )}
                             </td>
                             <td className="device-modal__ports-actions">
                               <button
@@ -1176,7 +1168,11 @@ export function DeviceModal({
                             </td>
                             <td>{iface.adminStatus}</td>
                             <td className="device-modal__ports-peer">
-                              {peerByInterfaceId?.get(iface.id) ?? '—'}
+                              {portConnectionCellLabel(
+                                isSub,
+                                peerByInterfaceId?.get(iface.id),
+                                !!linkContext,
+                              )}
                             </td>
                             <td className="device-modal__ports-actions">
                               <button

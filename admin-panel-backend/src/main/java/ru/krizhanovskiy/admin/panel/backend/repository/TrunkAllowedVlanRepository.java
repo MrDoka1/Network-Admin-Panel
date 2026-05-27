@@ -14,6 +14,8 @@ public interface TrunkAllowedVlanRepository extends JpaRepository<TrunkAllowedVl
 
     List<TrunkAllowedVlan> findByDeviceInterface_Id(UUID interfaceId);
 
+    void deleteByDeviceInterface_Id(UUID interfaceId);
+
     @Query("""
             SELECT t FROM TrunkAllowedVlan t
             JOIN FETCH t.vlan

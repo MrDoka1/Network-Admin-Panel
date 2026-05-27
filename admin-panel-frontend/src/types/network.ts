@@ -44,6 +44,14 @@ export type VlanCreatePayload = {
   isProtected?: boolean
 }
 
+/** PATCH /api/v1/network/vlans/{vlanId} */
+export type VlanUpdatePayload = {
+  name?: string
+  adminStatus?: VlanAdminStatus
+  operStatus?: VlanOperStatus | null
+  isProtected?: boolean
+}
+
 /** GET /api/v1/network/device-vlans — VLAN, настроенные на устройстве */
 export type DeviceVlan = {
   deviceId: string

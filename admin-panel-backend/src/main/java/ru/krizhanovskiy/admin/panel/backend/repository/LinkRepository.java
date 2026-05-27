@@ -6,4 +6,6 @@ import ru.krizhanovskiy.admin.panel.backend.domain.Link;
 import java.util.UUID;
 
 public interface LinkRepository extends JpaRepository<Link, UUID> {
+
+    void deleteByInterfaceA_IdOrInterfaceB_Id(UUID interfaceAId, UUID interfaceBId);
 }

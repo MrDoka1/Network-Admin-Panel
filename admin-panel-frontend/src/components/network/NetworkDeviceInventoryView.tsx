@@ -2,8 +2,16 @@ import { memo, useCallback, useEffect, useId, useMemo, useState } from 'react'
 import {
   deleteLink,
   fetchDeviceVlans,
+  fetchEndpointAttachments,
+  fetchEndpointDevices,
+  fetchEndpointInterfaces,
   loadNetworkTopology,
 } from '../../api/networkClient'
+import type {
+  EndpointDevice,
+  EndpointDeviceInterface,
+  EndpointNetworkAttachment,
+} from '../../types/endpoint'
 import type {
   DeviceInterface,
   DeviceType,
@@ -11,6 +19,10 @@ import type {
   Link,
   NetworkDevice,
 } from '../../types/network'
+import {
+  formatNetworkPortConnections,
+  portConnectionCellLabel,
+} from '../../utils/portConnectionLabel'
 import { formatPhysicalL2Summary } from '../../utils/portVlanLabels'
 import { splitHostAndCidrMask } from '../../utils/ipv4Cidr'
 import { DeviceModal } from './DeviceModal'
@@ -125,28 +137,6 @@ function linkEndpointsLabel(
     return d ? `${d.hostname} · ${i.name}` : i.name
   }
   return `${part(link.interfaceAId)} ↔ ${part(link.interfaceBId)}`
-}
-
-function formatPortPeer(
-  interfaceId: string,
-  links: Link[],
-  interfaces: DeviceInterface[],
-  devices: NetworkDevice[],
-): string | null {
-  const ifaceById = new Map(interfaces.map((i) => [i.id, i]))
-  const deviceById = new Map(devices.map((d) => [d.id, d]))
-  const parts: string[] = []
-  for (const link of links) {
-    let otherId: string | null = null
-    if (link.interfaceAId === interfaceId) otherId = link.interfaceBId
-    else if (link.interfaceBId === interfaceId) otherId = link.interfaceAId
-    else continue
-    const oi = ifaceById.get(otherId)
-    if (!oi) continue
-    const od = deviceById.get(oi.deviceId)
-    parts.push(`${od?.hostname ?? '?'} · ${oi.name}`)
-  }
-  return parts.length > 0 ? parts.join('; ') : null
 }
 
 function LinkPickModal({
@@ -285,6 +275,13 @@ export const NetworkDeviceInventoryView = memo(function NetworkDeviceInventoryVi
   const [allDevices, setAllDevices] = useState<NetworkDevice[]>([])
   const [interfaces, setInterfaces] = useState<DeviceInterface[]>([])
   const [links, setLinks] = useState<Link[]>([])
+  const [endpointDevices, setEndpointDevices] = useState<EndpointDevice[]>([])
+  const [endpointInterfaces, setEndpointInterfaces] = useState<
+    EndpointDeviceInterface[]
+  >([])
+  const [attachments, setAttachments] = useState<EndpointNetworkAttachment[]>(
+    [],
+  )
   const [deviceVlans, setDeviceVlans] = useState<DeviceVlan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -304,13 +301,21 @@ export const NetworkDeviceInventoryView = memo(function NetworkDeviceInventoryVi
     setLoading(true)
     setError(null)
     try {
-      const [topology, dv] = await Promise.all([
+      const [topology, dv, epDevices, epAttachments] = await Promise.all([
         loadNetworkTopology(),
         fetchDeviceVlans(),
+        fetchEndpointDevices(),
+        fetchEndpointAttachments(),
       ])
+      const epIfaceLists = await Promise.all(
+        epDevices.map((d) => fetchEndpointInterfaces(d.id)),
+      )
       setAllDevices(topology.devices)
       setInterfaces(topology.interfaces)
       setLinks(topology.links)
+      setEndpointDevices(epDevices)
+      setEndpointInterfaces(epIfaceLists.flat())
+      setAttachments(epAttachments)
       setDeviceVlans(dv)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -396,10 +401,13 @@ export const NetworkDeviceInventoryView = memo(function NetworkDeviceInventoryVi
     )
   }, [relevantLinks, allDevices, interfaces])
 
-  const busyInterfaceIds = useMemo(
-    () => new Set(links.flatMap((l) => [l.interfaceAId, l.interfaceBId])),
-    [links],
-  )
+  const busyInterfaceIds = useMemo(() => {
+    const ids = new Set(links.flatMap((l) => [l.interfaceAId, l.interfaceBId]))
+    for (const a of attachments) {
+      ids.add(a.networkInterfaceId)
+    }
+    return ids
+  }, [links, attachments])
 
   useEffect(() => {
     if (filteredDevices.length === 0) {
@@ -473,8 +481,18 @@ export const NetworkDeviceInventoryView = memo(function NetworkDeviceInventoryVi
       links,
       allInterfaces: interfaces,
       devices: allDevices,
+      attachments,
+      endpointInterfaces,
+      endpointDevices,
     }),
-    [links, interfaces, allDevices],
+    [
+      links,
+      interfaces,
+      allDevices,
+      attachments,
+      endpointInterfaces,
+      endpointDevices,
+    ],
   )
 
   return (
@@ -623,7 +641,7 @@ export const NetworkDeviceInventoryView = memo(function NetworkDeviceInventoryVi
                   ) : null}
                   <ul className="net-inv__cards">
                     {filteredDevices.map((d) => {
-                      const ifCount = interfacesByDevice.get(d.id)?.length ?? 0
+                      const ifCount = interfacesByDevice.get(d.id)?.filter(i => i.parentInterfaceId == null).length ?? 0
                       const linkCount = linkCountByDevice.get(d.id) ?? 0
                       const vlanCount = vlanCountByDevice.get(d.id) ?? 0
                       const selected = d.id === selectedDeviceId
@@ -737,13 +755,13 @@ export const NetworkDeviceInventoryView = memo(function NetworkDeviceInventoryVi
                               </thead>
                               <tbody>
                                 {selectedInterfaces.map((i) => {
-                                  const peer = formatPortPeer(
+                                  const peer = formatNetworkPortConnections(
                                     i.id,
-                                    links,
-                                    interfaces,
-                                    allDevices,
+                                    linkContext,
                                   )
                                   const isSub = !!i.parentInterfaceId
+                                  const connectionLabel =
+                                    portConnectionCellLabel(isSub, peer, true)
                                   return (
                                     <tr
                                       key={i.id}
@@ -793,11 +811,15 @@ export const NetworkDeviceInventoryView = memo(function NetworkDeviceInventoryVi
                                       <td>
                                         {peer ? (
                                           <span className="net-inv__linked">
-                                            {peer}
+                                            {connectionLabel}
+                                          </span>
+                                        ) : connectionLabel === 'свободен' ? (
+                                          <span className="net-inv__unlinked">
+                                            {connectionLabel}
                                           </span>
                                         ) : (
-                                          <span className="net-inv__unlinked">
-                                            свободен
+                                          <span className="net-inv__muted-inline">
+                                            {connectionLabel}
                                           </span>
                                         )}
                                       </td>

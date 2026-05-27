@@ -11,6 +11,7 @@ type Props = {
   vlanId: number
   hostname: string
   present: boolean
+  vlanProtected: boolean
   pending: VlanMatrixPending | null
   toggling: boolean
   onActivate: (deviceId: string, vlanId: number, present: boolean) => void
@@ -21,6 +22,7 @@ export const VlanMatrixCell = memo(function VlanMatrixCell({
   vlanId,
   hostname,
   present,
+  vlanProtected,
   pending,
   toggling,
   onActivate,
@@ -60,10 +62,18 @@ export const VlanMatrixCell = memo(function VlanMatrixCell({
       : `VLAN ${vlanId} не настроен на ${hostname}. Нажмите для изменения`
 
   return (
-    <td className="vlan-matrix__cell">
+    <td
+      className={
+        vlanProtected
+          ? 'vlan-matrix__cell vlan-matrix__cell--protected-col'
+          : 'vlan-matrix__cell'
+      }
+    >
       <button
         type="button"
-        className={`vlan-matrix__cell-btn ${stateClass}`}
+        className={`vlan-matrix__cell-btn ${stateClass}${
+          vlanProtected ? ' vlan-matrix__cell-btn--protected-col' : ''
+        }`}
         title={title}
         aria-label={
           isPending

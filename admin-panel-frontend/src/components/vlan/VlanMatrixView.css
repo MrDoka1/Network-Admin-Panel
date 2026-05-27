@@ -1,4 +1,11 @@
 .vlan-matrix {
+  --vlan-protected-head-bg: rgba(56, 189, 248, 0.28);
+  --vlan-protected-cell-bg: rgba(56, 189, 248, 0.14);
+  --vlan-protected-border: rgba(14, 165, 233, 0.45);
+  --vlan-protected-text: #0369a1;
+  --vlan-protected-badge-bg: rgba(14, 165, 233, 0.35);
+  --vlan-protected-badge-text: #0c4a6e;
+
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -167,8 +174,7 @@
   border: 1px solid var(--border);
 }
 
-.vlan-matrix__table .vlan-matrix__corner,
-.vlan-matrix__table .vlan-matrix__col-head {
+.vlan-matrix__table .vlan-matrix__corner {
   padding: 10px 12px;
 }
 
@@ -197,10 +203,55 @@
   z-index: 2;
   background: var(--bg);
   min-width: 44px;
+  padding: 0;
   text-align: center;
   font-weight: 600;
   color: var(--text-h);
   white-space: nowrap;
+}
+
+.vlan-matrix__col-head--protected {
+  background: var(--vlan-protected-head-bg);
+  border-color: var(--vlan-protected-border);
+}
+
+.vlan-matrix__col-head-btn {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-weight: inherit;
+  color: inherit;
+  text-align: center;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.vlan-matrix__col-head-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.vlan-matrix__col-head-btn:disabled {
+  cursor: wait;
+  opacity: 0.75;
+}
+
+.vlan-matrix__col-head--protected .vlan-matrix__col-head-btn {
+  color: var(--vlan-protected-text);
+}
+
+.vlan-matrix__col-vid {
+  font-weight: 600;
+}
+
+.vlan-matrix__col-head-busy {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  opacity: 0.8;
 }
 
 .vlan-matrix__col-name {
@@ -214,11 +265,17 @@
   text-overflow: ellipsis;
 }
 
-.vlan-matrix__col-protected {
-  display: inline-block;
-  margin-left: 2px;
-  font-size: 10px;
-  opacity: 0.75;
+.vlan-matrix__cell--protected-col {
+  background: var(--vlan-protected-cell-bg);
+  border-color: var(--vlan-protected-border);
+}
+
+.vlan-matrix__cell-btn--protected-col.vlan-matrix__cell-btn--absent {
+  background: var(--vlan-protected-cell-bg);
+}
+
+.vlan-matrix__cell-btn--protected-col.vlan-matrix__cell-btn--present {
+  box-shadow: inset 0 0 0 2px var(--vlan-protected-border);
 }
 
 .vlan-matrix__row-head {
@@ -313,6 +370,15 @@
 }
 
 @media (prefers-color-scheme: dark) {
+  .vlan-matrix {
+    --vlan-protected-head-bg: rgba(34, 211, 238, 0.22);
+    --vlan-protected-cell-bg: rgba(34, 211, 238, 0.1);
+    --vlan-protected-border: rgba(34, 211, 238, 0.4);
+    --vlan-protected-text: #a5f3fc;
+    --vlan-protected-badge-bg: rgba(34, 211, 238, 0.35);
+    --vlan-protected-badge-text: #ecfeff;
+  }
+
   .vlan-matrix__cell-btn--present {
     background: #16a34a;
   }

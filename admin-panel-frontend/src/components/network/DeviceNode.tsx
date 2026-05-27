@@ -6,7 +6,8 @@ import {
   type Node,
   type NodeProps,
 } from '@xyflow/react'
-import { Fragment, memo, useEffect, useMemo } from 'react'
+import { Fragment, memo, useEffect, useMemo, type CSSProperties } from 'react'
+import { computeTopologyNodeDimensions } from './topologyNodeSize'
 
 export type PortEdge = 'top' | 'bottom' | 'left' | 'right'
 
@@ -54,17 +55,29 @@ function PortNameBlock(props: {
   stackClass: string
 }) {
   const { p, nameClass, stackClass } = props
+
+  let firstDigitIndex : number = -1;
+  for (let i = 0; i < p.name.length; i++) {
+    if (/\d/.test(p.name[i])) {
+      firstDigitIndex = i;
+      break;
+    }
+  }
+  const prefix = p.name.substring(0, 2)
+  const suffix = firstDigitIndex != -1 ? p.name.substring(firstDigitIndex) : "";
+  const portName = prefix + suffix;
+
   if (!p.vlanCaption) {
     return (
-      <span className={nameClass} title={p.name}>
-        {p.name}
+      <span className={nameClass} title={portName}>
+        {portName}
       </span>
     )
   }
   return (
     <span className={stackClass}>
-      <span className={nameClass} title={p.name}>
-        {p.name}
+      <span className={nameClass} title={portName}>
+        {portName}
       </span>
       <span className="device-node__port-vlan" title={p.vlanTooltip ?? p.vlanCaption}>
         {p.vlanCaption}
@@ -133,6 +146,31 @@ export const DeviceNode = memo(function DeviceNode({
     [ports],
   )
 
+  const dimensions = useMemo(
+    () =>
+      computeTopologyNodeDimensions({
+        top: topPorts.length,
+        bottom: bottomPorts.length,
+        left: leftPorts.length,
+        right: rightPorts.length,
+      }),
+    [
+      topPorts.length,
+      bottomPorts.length,
+      leftPorts.length,
+      rightPorts.length,
+    ],
+  )
+
+  const rootStyle = useMemo((): CSSProperties => {
+    return {
+      width: dimensions.width,
+      minHeight: dimensions.minHeight,
+      ['--topology-strip-left-min-height' as string]: `${dimensions.leftStripMinHeight}px`,
+      ['--topology-strip-right-min-height' as string]: `${dimensions.rightStripMinHeight}px`,
+    }
+  }, [dimensions])
+
   useEffect(() => {
     if (nodeId) updateInternals(nodeId)
   }, [
@@ -143,6 +181,8 @@ export const DeviceNode = memo(function DeviceNode({
     bottomPorts.length,
     leftPorts.length,
     rightPorts.length,
+    dimensions.width,
+    dimensions.minHeight,
   ])
 
   const typeClass =
@@ -155,6 +195,7 @@ export const DeviceNode = memo(function DeviceNode({
   return (
     <div
       className={`device-node ${typeClass}${selected ? ' device-node--selected' : ''}`.trim()}
+      style={rootStyle}
     >
       {topPorts.length > 0 ? (
         <div className="device-node__strip device-node__strip--top">

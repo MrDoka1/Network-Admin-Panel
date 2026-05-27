@@ -1,0 +1,71 @@
+.reconfig-rollback-toast {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: min(22rem, calc(100vw - 32px));
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #16a34a;
+  background: #dcfce7;
+  color: #14532d;
+  box-shadow: var(--shadow);
+}
+
+.reconfig-rollback-toast__text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.reconfig-rollback-toast__link {
+  color: #15803d;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.reconfig-rollback-toast__link:hover {
+  color: #166534;
+}
+
+.reconfig-rollback-toast__close {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.reconfig-rollback-toast__close:hover {
+  opacity: 1;
+  background: rgba(22, 101, 52, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  .reconfig-rollback-toast {
+    background: #14532d;
+    border-color: #22c55e;
+    color: #dcfce7;
+  }
+
+  .reconfig-rollback-toast__link {
+    color: #86efac;
+  }
+
+  .reconfig-rollback-toast__link:hover {
+    color: #bbf7d0;
+  }
+}

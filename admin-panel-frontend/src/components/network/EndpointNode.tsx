@@ -8,6 +8,7 @@ import {
 } from '@xyflow/react'
 import { Fragment, memo, useEffect, useMemo, type CSSProperties } from 'react'
 import type { DevicePortHandle } from './DeviceNode'
+import { computeTopologyNodeDimensions } from './topologyNodeSize'
 
 export type EndpointNodeData = Record<string, unknown> & {
   hostname: string
@@ -75,6 +76,31 @@ export const EndpointNode = memo(function EndpointNode({
     [ports],
   )
 
+  const dimensions = useMemo(
+    () =>
+      computeTopologyNodeDimensions({
+        top: topPorts.length,
+        bottom: bottomPorts.length,
+        left: leftPorts.length,
+        right: rightPorts.length,
+      }),
+    [
+      topPorts.length,
+      bottomPorts.length,
+      leftPorts.length,
+      rightPorts.length,
+    ],
+  )
+
+  const rootStyle = useMemo((): CSSProperties => {
+    return {
+      width: dimensions.width,
+      minHeight: dimensions.minHeight,
+      ['--topology-strip-left-min-height' as string]: `${dimensions.leftStripMinHeight}px`,
+      ['--topology-strip-right-min-height' as string]: `${dimensions.rightStripMinHeight}px`,
+    }
+  }, [dimensions])
+
   useEffect(() => {
     if (nodeId) updateInternals(nodeId)
   }, [
@@ -85,6 +111,8 @@ export const EndpointNode = memo(function EndpointNode({
     bottomPorts.length,
     leftPorts.length,
     rightPorts.length,
+    dimensions.width,
+    dimensions.minHeight,
   ])
 
   const renderTargetHandle = (
@@ -107,6 +135,7 @@ export const EndpointNode = memo(function EndpointNode({
   return (
     <div
       className={`endpoint-node${selected ? ' endpoint-node--selected' : ''}`}
+      style={rootStyle}
     >
       {topPorts.length > 0 ? (
         <div className="endpoint-node__strip endpoint-node__strip--top">

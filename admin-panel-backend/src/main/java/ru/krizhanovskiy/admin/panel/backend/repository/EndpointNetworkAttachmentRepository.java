@@ -19,4 +19,6 @@ public interface EndpointNetworkAttachmentRepository extends JpaRepository<Endpo
     @EntityGraph(attributePaths = {"networkInterface", "endpointInterface"})
     @Query("SELECT a FROM EndpointNetworkAttachment a WHERE a.id = :id")
     Optional<EndpointNetworkAttachment> findFetchedById(@Param("id") UUID id);
+
+    void deleteByNetworkInterface_Id(UUID interfaceId);
 }

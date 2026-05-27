@@ -60,6 +60,27 @@
   margin-top: 14px;
 }
 
+.network-graph__btn--danger {
+  border-color: #b91c1c;
+  color: #b91c1c;
+  background: transparent;
+}
+
+.network-graph__btn--danger:hover:not(:disabled) {
+  background: rgba(185, 28, 28, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  .network-graph__btn--danger {
+    border-color: #fca5a5;
+    color: #fca5a5;
+  }
+
+  .network-graph__btn--danger:hover:not(:disabled) {
+    background: rgba(252, 165, 165, 0.1);
+  }
+}
+
 .network-graph__aside-actions {
   margin-top: 4px;
 }
@@ -152,8 +173,8 @@
 .endpoint-node {
   cursor: grab;
   position: relative;
+  box-sizing: border-box;
   min-width: 180px;
-  max-width: 280px;
   padding: 10px 12px;
   border-radius: 12px;
   border: 2px dashed var(--border);
@@ -267,7 +288,7 @@
 .endpoint-node__strip--left {
   position: relative;
   flex: 0 0 42px;
-  min-height: 48px;
+  min-height: var(--topology-strip-left-min-height, 48px);
   margin: 0 2px 0 0;
   padding: 6px 0;
   border-right: 1px solid var(--border);
@@ -276,7 +297,7 @@
 .endpoint-node__strip--right {
   position: relative;
   flex: 0 0 42px;
-  min-height: 48px;
+  min-height: var(--topology-strip-right-min-height, 48px);
   margin: 0 0 0 2px;
   padding: 6px 0;
   border-left: 1px solid var(--border);
@@ -410,8 +431,8 @@
 .device-node {
   cursor: grab;
   position: relative;
+  box-sizing: border-box;
   min-width: 200px;
-  max-width: 300px;
   padding: 10px 12px;
   border-radius: 12px;
   border: 2px solid var(--border);
@@ -567,7 +588,7 @@
 .device-node__strip--left {
   position: relative;
   flex: 0 0 56px;
-  min-height: 48px;
+  min-height: var(--topology-strip-left-min-height, 48px);
   margin: 0 2px 0 0;
   padding: 6px 0;
   border-right: 1px solid var(--border);
@@ -576,7 +597,7 @@
 .device-node__strip--right {
   position: relative;
   flex: 0 0 56px;
-  min-height: 48px;
+  min-height: var(--topology-strip-right-min-height, 48px);
   margin: 0 0 0 2px;
   padding: 6px 0;
   border-left: 1px solid var(--border);

@@ -9,4 +9,6 @@ import java.util.UUID;
 public interface InterfaceVlanRepository extends JpaRepository<InterfaceVlan, UUID> {
 
     Optional<InterfaceVlan> findByDeviceInterface_Id(UUID interfaceId);
+
+    void deleteByDeviceInterface_Id(UUID interfaceId);
 }
