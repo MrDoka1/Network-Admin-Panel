@@ -55,6 +55,12 @@ export const VlanMatrixView = memo(function VlanMatrixView() {
 
   const [protectTogglingId, setProtectTogglingId] = useState<number | null>(null)
   const [protectError, setProtectError] = useState<string | null>(null)
+
+  const [editingVlanId, setEditingVlanId] = useState<number | null>(null)
+  const [editingName, setEditingName] = useState('')
+  const [nameSaveBusy, setNameSaveBusy] = useState(false)
+  const [nameError, setNameError] = useState<string | null>(null)
+
   const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const clearPendingTimer = useCallback(() => {
@@ -200,7 +206,7 @@ export const VlanMatrixView = memo(function VlanMatrixView() {
   )
 
   const toggleVlanProtected = useCallback(async (vlan: Vlan) => {
-    if (protectTogglingId != null) return
+    if (protectTogglingId != null || editingVlanId != null) return
     setProtectError(null)
     setProtectTogglingId(vlan.vlanId)
     try {
@@ -217,7 +223,47 @@ export const VlanMatrixView = memo(function VlanMatrixView() {
     } finally {
       setProtectTogglingId(null)
     }
-  }, [protectTogglingId])
+  }, [protectTogglingId, editingVlanId])
+
+  const startEditVlanName = useCallback((vlan: Vlan) => {
+    if (nameSaveBusy || protectTogglingId != null) return
+    setNameError(null)
+    setEditingVlanId(vlan.vlanId)
+    setEditingName(vlan.name ?? '')
+  }, [nameSaveBusy, protectTogglingId])
+
+  const cancelEditVlanName = useCallback(() => {
+    if (nameSaveBusy) return
+    setEditingVlanId(null)
+    setEditingName('')
+    setNameError(null)
+  }, [nameSaveBusy])
+
+  const submitVlanName = useCallback(
+    async (e: FormEvent, vlanId: number) => {
+      e.preventDefault()
+      if (nameSaveBusy) return
+      setNameError(null)
+      setNameSaveBusy(true)
+      try {
+        const updated = await updateVlan(vlanId, {
+          name: editingName.trim(),
+        })
+        setVlans((prev) =>
+          sortVlans(
+            prev.map((v) => (v.vlanId === updated.vlanId ? updated : v)),
+          ),
+        )
+        setEditingVlanId(null)
+        setEditingName('')
+      } catch (err) {
+        setNameError(err instanceof Error ? err.message : String(err))
+      } finally {
+        setNameSaveBusy(false)
+      }
+    },
+    [editingName, nameSaveBusy],
+  )
 
   return (
     <div className="vlan-matrix">
@@ -288,6 +334,11 @@ export const VlanMatrixView = memo(function VlanMatrixView() {
             {protectError}
           </p>
         ) : null}
+        {nameError ? (
+          <p className="vlan-matrix__error" role="alert">
+            {nameError}
+          </p>
+        ) : null}
       </header>
 
       {loading ? (
@@ -320,34 +371,100 @@ export const VlanMatrixView = memo(function VlanMatrixView() {
                     }
                     scope="col"
                   >
-                    <button
-                      type="button"
-                      className="vlan-matrix__col-head-btn"
-                      disabled={protectTogglingId === v.vlanId}
-                      title={
-                        v.isProtected
-                          ? `VLAN ${v.vlanId}: защищён. Нажмите, чтобы снять защиту`
-                          : `VLAN ${v.vlanId}. Нажмите, чтобы сделать защищённым`
-                      }
-                      aria-label={
-                        protectTogglingId === v.vlanId
-                          ? `VLAN ${v.vlanId}: обновление защиты…`
-                          : v.isProtected
-                            ? `VLAN ${v.vlanId}: снять защиту`
-                            : `VLAN ${v.vlanId}: сделать защищённым`
-                      }
-                      onClick={() => void toggleVlanProtected(v)}
-                    >
-                      <span className="vlan-matrix__col-vid">{v.vlanId}</span>
-                      {v.name ? (
-                        <span className="vlan-matrix__col-name" title={v.name}>
-                          {v.name}
-                        </span>
-                      ) : null}
-                      {protectTogglingId === v.vlanId ? (
-                        <span className="vlan-matrix__col-head-busy">…</span>
-                      ) : null}
-                    </button>
+                    <div className="vlan-matrix__col-head-inner">
+                      <button
+                        type="button"
+                        className="vlan-matrix__col-protect-btn"
+                        disabled={
+                          protectTogglingId === v.vlanId ||
+                          editingVlanId === v.vlanId
+                        }
+                        title={
+                          v.isProtected
+                            ? `VLAN ${v.vlanId}: защищён. Нажмите, чтобы снять защиту`
+                            : `VLAN ${v.vlanId}. Нажмите, чтобы сделать защищённым`
+                        }
+                        aria-label={
+                          protectTogglingId === v.vlanId
+                            ? `VLAN ${v.vlanId}: обновление защиты…`
+                            : v.isProtected
+                              ? `VLAN ${v.vlanId}: снять защиту`
+                              : `VLAN ${v.vlanId}: сделать защищённым`
+                        }
+                        onClick={() => void toggleVlanProtected(v)}
+                      >
+                        <span className="vlan-matrix__col-vid">{v.vlanId}</span>
+                        {protectTogglingId === v.vlanId ? (
+                          <span className="vlan-matrix__col-head-busy">…</span>
+                        ) : null}
+                      </button>
+                      {editingVlanId === v.vlanId ? (
+                        <form
+                          className="vlan-matrix__col-name-form"
+                          onSubmit={(e) => void submitVlanName(e, v.vlanId)}
+                        >
+                          <input
+                            type="text"
+                            className="vlan-matrix__col-name-input"
+                            maxLength={256}
+                            value={editingName}
+                            onChange={(e) => setEditingName(e.target.value)}
+                            disabled={nameSaveBusy}
+                            placeholder="имя"
+                            autoFocus
+                            aria-label={`Имя VLAN ${v.vlanId}`}
+                          />
+                          <div className="vlan-matrix__col-name-actions">
+                            <button
+                              type="submit"
+                              className="vlan-matrix__col-name-action vlan-matrix__col-name-action--save"
+                              disabled={nameSaveBusy}
+                            >
+                              {nameSaveBusy ? '…' : 'OK'}
+                            </button>
+                            <button
+                              type="button"
+                              className="vlan-matrix__col-name-action"
+                              disabled={nameSaveBusy}
+                              onClick={cancelEditVlanName}
+                            >
+                              Отм.
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        <button
+                          type="button"
+                          className="vlan-matrix__col-name-btn"
+                          disabled={
+                            nameSaveBusy ||
+                            protectTogglingId != null ||
+                            (editingVlanId != null && editingVlanId !== v.vlanId)
+                          }
+                          title={
+                            v.name
+                              ? `Имя: ${v.name}. Нажмите, чтобы изменить`
+                              : 'Задать имя VLAN'
+                          }
+                          aria-label={
+                            v.name
+                              ? `VLAN ${v.vlanId}, имя «${v.name}». Изменить имя`
+                              : `VLAN ${v.vlanId}. Задать имя`
+                          }
+                          onClick={() => startEditVlanName(v)}
+                        >
+                          {v.name ? (
+                            <span className="vlan-matrix__col-name" title={v.name}>
+                              {v.name}
+                            </span>
+                          ) : (
+                            <span className="vlan-matrix__col-name-placeholder">
+                              имя
+                            </span>
+                          )}
+                        </button>
+                      )}
+                    </div>
                   </th>
                 ))}
               </tr>

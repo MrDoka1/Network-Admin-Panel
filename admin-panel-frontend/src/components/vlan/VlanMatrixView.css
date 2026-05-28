@@ -215,32 +215,105 @@
   border-color: var(--vlan-protected-border);
 }
 
-.vlan-matrix__col-head-btn {
+.vlan-matrix__col-head-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 72px;
+}
+
+.vlan-matrix__col-protect-btn,
+.vlan-matrix__col-name-btn {
   display: block;
   width: 100%;
   margin: 0;
-  padding: 10px 12px;
   border: none;
   background: transparent;
   font: inherit;
-  font-weight: inherit;
   color: inherit;
   text-align: center;
   cursor: pointer;
+}
+
+.vlan-matrix__col-protect-btn {
+  padding: 10px 12px 4px;
+  font-weight: inherit;
   white-space: nowrap;
 }
 
-.vlan-matrix__col-head-btn:hover:not(:disabled) {
+.vlan-matrix__col-name-btn {
+  padding: 4px 8px 10px;
+  font-weight: 400;
+}
+
+.vlan-matrix__col-protect-btn:hover:not(:disabled),
+.vlan-matrix__col-name-btn:hover:not(:disabled) {
   filter: brightness(1.05);
 }
 
-.vlan-matrix__col-head-btn:disabled {
-  cursor: wait;
+.vlan-matrix__col-protect-btn:disabled,
+.vlan-matrix__col-name-btn:disabled {
+  cursor: not-allowed;
   opacity: 0.75;
 }
 
-.vlan-matrix__col-head--protected .vlan-matrix__col-head-btn {
+.vlan-matrix__col-head--protected .vlan-matrix__col-protect-btn,
+.vlan-matrix__col-head--protected .vlan-matrix__col-name-btn {
   color: var(--vlan-protected-text);
+}
+
+.vlan-matrix__col-name-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 6px 8px;
+  margin: 0;
+}
+
+.vlan-matrix__col-name-input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 400;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.vlan-matrix__col-name-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+}
+
+.vlan-matrix__col-name-action {
+  flex: 1;
+  font: inherit;
+  font-size: 10px;
+  padding: 3px 4px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.vlan-matrix__col-name-action--save {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.vlan-matrix__col-name-action:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.vlan-matrix__col-name-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .vlan-matrix__col-vid {
@@ -256,13 +329,20 @@
 
 .vlan-matrix__col-name {
   display: block;
-  margin-top: 4px;
   font-size: 11px;
-  font-weight: 400;
   color: var(--text);
-  max-width: 80px;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vlan-matrix__col-name-placeholder {
+  display: block;
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.65;
+  font-style: italic;
 }
 
 .vlan-matrix__cell--protected-col {

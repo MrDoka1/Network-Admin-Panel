@@ -13,7 +13,6 @@ import {
 import { ReconfigRollbackToast } from './ReconfigRollbackToast'
 import type { DeviceInterface, NetworkDevice, Vlan } from '../../types/network'
 import type {
-  ActionExecutionStatus,
   BatchCriticality,
   ReconfigurationBatchView,
   ReconfigurationEntityStatus,
@@ -99,7 +98,7 @@ function entityStatusLabel(s: ReconfigurationEntityStatus): string {
   }
 }
 
-function actionStatusLabel(s: ActionExecutionStatus): string {
+/*function actionStatusLabel(s: ActionExecutionStatus): string {
   switch (s) {
     case 'PENDING':
       return 'Ожидает'
@@ -114,7 +113,7 @@ function actionStatusLabel(s: ActionExecutionStatus): string {
     default:
       return s
   }
-}
+}*/
 
 function criticalityLabel(c: BatchCriticality): string {
   switch (c) {
@@ -152,12 +151,12 @@ function pillClassForEntity(s: ReconfigurationEntityStatus): string {
   }
 }
 
-function pillClassForAction(s: ActionExecutionStatus): string {
-  if (s === 'EXECUTING') {
-    return 'reconfig-pill reconfig-pill--running'
-  }
-  return pillClassForEntity(s as ReconfigurationEntityStatus)
-}
+// function pillClassForAction(s: ActionExecutionStatus): string {
+//   if (s === 'EXECUTING') {
+//     return 'reconfig-pill reconfig-pill--running'
+//   }
+//   return pillClassForEntity(s as ReconfigurationEntityStatus)
+// }
 
 function pillClassForCriticality(c: BatchCriticality): string {
   switch (c) {
@@ -310,6 +309,12 @@ function taskStats(task: ReconfigurationTask): {
   return { batchCount, actionCount }
 }
 
+function truncateOneLine(text: string, maxLen: number): string {
+  const normalized = text.replace(/\s+/g, ' ').trim()
+  if (normalized.length <= maxLen) return normalized
+  return `${normalized.slice(0, maxLen - 1)}…`
+}
+
 function taskCollapsedSummary(task: ReconfigurationTask): string {
   const { batchCount, actionCount } = taskStats(task)
   const batchWord =
@@ -325,7 +330,19 @@ function taskCollapsedSummary(task: ReconfigurationTask): string {
     previews.length > 0
       ? ` · ${previews.join('; ')}${actionCount > 2 ? '…' : ''}`
       : ''
-  return `${batchCount} ${batchWord}, ${actionCount} ${actionWord}${preview}`
+  const reason = task.statusReason?.trim()
+    ? ` · ${truncateOneLine(task.statusReason, 100)}`
+    : ''
+  return `${batchCount} ${batchWord}, ${actionCount} ${actionWord}${preview}${reason}`
+}
+
+function isInteractiveCardHeadTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  return Boolean(
+    target.closest(
+      'button, a, input, textarea, select, label, [role="button"], [role="link"]',
+    ),
+  )
 }
 
 function sortTasksNewestFirst(tasks: ReconfigurationTask[]): ReconfigurationTask[] {
@@ -665,14 +682,23 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
                   : 'reconfig-card'
               }
             >
-              <div className="reconfig-card__head">
+              <div
+                className="reconfig-card__head"
+                onClick={(e) => {
+                  if (isInteractiveCardHeadTarget(e.target)) return
+                  toggleTaskCollapsed(task.id)
+                }}
+              >
                 <button
                   type="button"
                   className="reconfig-card__toggle"
                   aria-expanded={!collapsed}
                   aria-controls={`reconfig-card-body-${task.id}`}
                   title={collapsed ? 'Развернуть задачу' : 'Свернуть задачу'}
-                  onClick={() => toggleTaskCollapsed(task.id)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    toggleTaskCollapsed(task.id)
+                  }}
                 >
                   <span
                     className={
@@ -758,17 +784,17 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
                 <p className="reconfig-card__summary">
                   {taskCollapsedSummary(task)}
                 </p>
-              ) : null}
-              {task.statusReason ? (
-                <p className="reconfig-card__status-reason" role="note">
-                  {task.statusReason}
-                </p>
-              ) : null}
-              <div
-                id={`reconfig-card-body-${task.id}`}
-                className="reconfig-card__body"
-                hidden={collapsed}
-              >
+              ) : (
+                <>
+                  {task.statusReason ? (
+                    <p className="reconfig-card__status-reason" role="note">
+                      {task.statusReason}
+                    </p>
+                  ) : null}
+                  <div
+                    id={`reconfig-card-body-${task.id}`}
+                    className="reconfig-card__body"
+                  >
                 {task.batches.map((batch, idx) => (
                   <div
                     key={batch.id}
@@ -817,9 +843,9 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
                           <span className="reconfig-actions__type">
                             {ACTION_TYPE_LABEL[action.actionType]}
                           </span>
-                          <span className={pillClassForAction(action.status)}>
-                            {actionStatusLabel(action.status)}
-                          </span>
+                          {/*<span className={pillClassForAction(action.status)}>*/}
+                          {/*  {actionStatusLabel(action.status)}*/}
+                          {/*</span>*/}
                           {isRollbackEligibleStatus(action.status) ? (
                             <button
                               type="button"
@@ -859,7 +885,9 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
                     </ul>
                   </div>
                 ))}
-              </div>
+                  </div>
+                </>
+              )}
             </article>
             )
           })}

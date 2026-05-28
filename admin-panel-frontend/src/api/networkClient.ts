@@ -133,7 +133,7 @@ export async function updateVlan(
 ): Promise<Vlan> {
   const body: Record<string, unknown> = {}
   if (payload.name !== undefined) {
-    body.name = payload.name
+    body.name = payload.name.trim()
   }
   if (payload.adminStatus !== undefined) {
     body.adminStatus = payload.adminStatus

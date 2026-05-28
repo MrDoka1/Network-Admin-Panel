@@ -70,6 +70,16 @@ public class ReconfigurationTaskMapper {
 
     public ReconfigurationEntityStatus effectiveBatchStatus(
             ReconfigurationBatch batch, TaskExecutionStatusBundle bundle) {
+        return effectiveBatchStatus(batch, bundle, null);
+    }
+
+    public ReconfigurationEntityStatus effectiveBatchStatus(
+            ReconfigurationBatch batch,
+            TaskExecutionStatusBundle bundle,
+            ReconfigurationEntityStatus taskEffectiveStatus) {
+        if (taskEffectiveStatus == ReconfigurationEntityStatus.CANCEL) {
+            return ReconfigurationEntityStatus.CANCEL;
+        }
         ReconfigurationTaskStatus batchDb =
                 bundle != null ? bundle.batchStatuses().get(batch.id()) : null;
         return resolveStatus(batch.status(), batchDb);
@@ -92,17 +102,18 @@ public class ReconfigurationTaskMapper {
             ReconfigurationTask source, Map<UUID, TaskExecutionStatusBundle> statusByTaskId) {
         TaskExecutionStatusBundle bundle =
                 statusByTaskId != null ? statusByTaskId.get(source.id()) : null;
+        ReconfigurationEntityStatus taskEffectiveStatus = effectiveTaskStatus(source, bundle);
         ReconfigurationTaskStatus taskDb = bundle != null ? bundle.taskStatus() : null;
         return new ReconfigurationTaskResponse(
                 source.id(),
                 source.initiatedBy(),
                 source.createdAt(),
-                effectiveTaskStatus(source, bundle),
+                taskEffectiveStatus,
                 taskDb != null ? taskDb.getUpdatedAt() : null,
                 taskDb != null ? taskDb.getUpdatedBy() : null,
                 taskDb != null ? taskDb.getStatusReason() : null,
                 source.batches().stream()
-                        .map(batch -> toBatchView(batch, bundle))
+                        .map(batch -> toBatchView(batch, bundle, taskEffectiveStatus))
                         .toList());
     }
 
@@ -120,12 +131,21 @@ public class ReconfigurationTaskMapper {
     }
 
     public ReconfigurationBatchView toBatchView(ReconfigurationBatch batch, TaskExecutionStatusBundle bundle) {
+        return toBatchView(batch, bundle, null);
+    }
+
+    public ReconfigurationBatchView toBatchView(
+            ReconfigurationBatch batch,
+            TaskExecutionStatusBundle bundle,
+            ReconfigurationEntityStatus taskEffectiveStatus) {
+        ReconfigurationEntityStatus status =
+                effectiveBatchStatus(batch, bundle, taskEffectiveStatus);
         ReconfigurationTaskStatus batchDb =
                 bundle != null ? bundle.batchStatuses().get(batch.id()) : null;
         return new ReconfigurationBatchView(
                 batch.id(),
                 batch.criticality(),
-                resolveStatus(batch.status(), batchDb),
+                status,
                 batchDb != null ? batchDb.getUpdatedAt() : null,
                 batch.actions().stream().map(this::toApiAction).toList());
     }

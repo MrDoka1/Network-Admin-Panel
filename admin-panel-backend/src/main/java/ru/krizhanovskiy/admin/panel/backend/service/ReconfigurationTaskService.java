@@ -82,7 +82,8 @@ public class ReconfigurationTaskService {
                 taskId,
                 ReconfigurationTaskExecutionStatus.CANCEL,
                 resolveUpdatedBy(),
-                null);
+                null,
+                task.batches().stream().map(ReconfigurationBatch::id).toList());
         return taskResponseAfterStatusChange(task);
     }
 

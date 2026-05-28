@@ -13,6 +13,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -62,14 +63,78 @@ public class ReconfigurationTaskStatusService {
             ReconfigurationTaskExecutionStatus status,
             String updatedBy,
             String statusReason) {
+        return recordTaskLevelStatus(taskId, status, updatedBy, statusReason, null);
+    }
+
+    @Transactional
+    public ReconfigurationTaskStatus recordTaskLevelStatus(
+            UUID taskId,
+            ReconfigurationTaskExecutionStatus status,
+            String updatedBy,
+            String statusReason,
+            Collection<UUID> batchIds) {
+        if (status == ReconfigurationTaskExecutionStatus.CANCEL) {
+            Objects.requireNonNull(
+                    batchIds,
+                    "При отмене задачи необходимо передать идентификаторы батчей для проставления статуса CANCEL");
+        }
+        Instant updatedAt = Instant.now();
+        ReconfigurationTaskStatus row = newStatusRow(taskId, null, status, updatedAt, updatedBy, statusReason);
+        ReconfigurationTaskStatus saved = reconfigurationTaskStatusRepository.save(row);
+        if (status == ReconfigurationTaskExecutionStatus.CANCEL) {
+            propagateCancelToBatches(taskId, batchIds, updatedAt, updatedBy, statusReason);
+        }
+        return saved;
+    }
+
+    @Transactional
+    public ReconfigurationTaskStatus recordBatchLevelStatus(
+            UUID taskId,
+            UUID batchId,
+            ReconfigurationTaskExecutionStatus status,
+            String updatedBy,
+            String statusReason) {
+        ReconfigurationTaskStatus row =
+                newStatusRow(taskId, batchId, status, Instant.now(), updatedBy, statusReason);
+        return reconfigurationTaskStatusRepository.save(row);
+    }
+
+    private void propagateCancelToBatches(
+            UUID taskId,
+            Collection<UUID> batchIds,
+            Instant updatedAt,
+            String updatedBy,
+            String statusReason) {
+        for (UUID batchId : batchIds) {
+            if (batchId == null) {
+                continue;
+            }
+            reconfigurationTaskStatusRepository.save(
+                    newStatusRow(
+                            taskId,
+                            batchId,
+                            ReconfigurationTaskExecutionStatus.CANCEL,
+                            updatedAt,
+                            updatedBy,
+                            statusReason));
+        }
+    }
+
+    private static ReconfigurationTaskStatus newStatusRow(
+            UUID taskId,
+            UUID batchId,
+            ReconfigurationTaskExecutionStatus status,
+            Instant updatedAt,
+            String updatedBy,
+            String statusReason) {
         ReconfigurationTaskStatus row = new ReconfigurationTaskStatus();
         row.setTaskId(taskId);
-        row.setBatchId(null);
+        row.setBatchId(batchId);
         row.setStatus(status);
-        row.setUpdatedAt(Instant.now());
+        row.setUpdatedAt(updatedAt);
         row.setUpdatedBy(updatedBy);
         row.setStatusReason(statusReason);
-        return reconfigurationTaskStatusRepository.save(row);
+        return row;
     }
 
     public static final class TaskExecutionStatusBundle {

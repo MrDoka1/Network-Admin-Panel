@@ -183,6 +183,11 @@
   padding: 14px 16px;
   background: var(--code-bg);
   border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.reconfig-card__head :is(button, a, input, textarea, select, label) {
+  cursor: default;
 }
 
 .reconfig-card__toggle {
