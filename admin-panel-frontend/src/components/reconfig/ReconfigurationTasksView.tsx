@@ -1,9 +1,19 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchDevices, fetchVlans } from '../../api/networkClient'
 import {
   cancelReconfigurationTask,
   confirmReconfigurationTask,
+  fetchReconfigurationTaskStatusHistory,
   fetchReconfigurationTasks,
 } from '../../api/reconfigurationClient'
 import {
@@ -17,6 +27,7 @@ import type {
   ReconfigurationBatchView,
   ReconfigurationEntityStatus,
   ReconfigurationTask,
+  ReconfigurationTaskStatusHistoryEntry,
   ReconfigurationVlanAction,
 } from '../../types/reconfiguration'
 import {
@@ -363,6 +374,184 @@ function networkDeviceTooltip(
   return `${d.hostname} (${d.mgmtIp})\n${deviceId}`
 }
 
+function filterStatusHistory(
+  entries: ReconfigurationTaskStatusHistoryEntry[],
+  batchId: string | undefined,
+): ReconfigurationTaskStatusHistoryEntry[] {
+  if (batchId == null) return entries
+  return entries.filter(
+    (e) => e.batchId == null || e.batchId === batchId,
+  )
+}
+
+function historyScopeLabel(
+  entry: ReconfigurationTaskStatusHistoryEntry,
+  batchIndexById: Map<string, number>,
+): string {
+  if (entry.batchId == null) return 'задача'
+  const idx = batchIndexById.get(entry.batchId)
+  return idx != null ? `пакет ${idx + 1}` : 'пакет'
+}
+
+type StatusHistoryCache = Map<
+  string,
+  ReconfigurationTaskStatusHistoryEntry[] | 'loading' | 'error'
+>
+
+const ReconfigStatusHistoryTrigger = memo(function ReconfigStatusHistoryTrigger({
+  taskId,
+  batchId,
+  batchIndexById,
+  children,
+  getCache,
+  setCacheEntry,
+}: {
+  taskId: string
+  batchId?: string
+  batchIndexById: Map<string, number>
+  children: ReactNode
+  getCache: () => StatusHistoryCache
+  setCacheEntry: (
+    taskId: string,
+    value: ReconfigurationTaskStatusHistoryEntry[] | 'loading' | 'error',
+  ) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [pinned, setPinned] = useState(false)
+  const wrapRef = useRef<HTMLSpanElement>(null)
+
+  const loadHistory = useCallback(() => {
+    const cached = getCache().get(taskId)
+    if (cached === 'loading') return
+    if (cached != null && cached !== 'error') return
+    setCacheEntry(taskId, 'loading')
+    void fetchReconfigurationTaskStatusHistory(taskId)
+      .then((rows) => setCacheEntry(taskId, rows))
+      .catch(() => setCacheEntry(taskId, 'error'))
+  }, [getCache, setCacheEntry, taskId])
+
+  const show = useCallback(() => {
+    setOpen(true)
+    loadHistory()
+  }, [loadHistory])
+
+  const hide = useCallback(() => {
+    if (!pinned) setOpen(false)
+  }, [pinned])
+
+  const togglePin = useCallback(
+    (e: ReactMouseEvent) => {
+      e.stopPropagation()
+      setPinned((prev) => {
+        const next = !prev
+        if (next) {
+          setOpen(true)
+          loadHistory()
+        } else {
+          setOpen(false)
+        }
+        return next
+      })
+    },
+    [loadHistory],
+  )
+
+  useEffect(() => {
+    if (!pinned) return
+    const onDoc = (e: globalThis.MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) {
+        setPinned(false)
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [pinned])
+
+  const cached = getCache().get(taskId)
+  const allEntries = cached === 'loading' || cached === 'error' || cached == null
+    ? []
+    : cached
+  const entries = filterStatusHistory(allEntries, batchId)
+
+  return (
+    <span
+      ref={wrapRef}
+      className={
+        pinned
+          ? 'reconfig-status-history reconfig-status-history--pinned'
+          : 'reconfig-status-history'
+      }
+      onMouseEnter={show}
+      onMouseLeave={hide}
+    >
+      <button
+        type="button"
+        className="reconfig-status-history__trigger"
+        title="История смены статусов"
+        aria-expanded={open}
+        onClick={togglePin}
+      >
+        {children}
+      </button>
+      {open ? (
+        <div
+          className="reconfig-status-history__popover"
+          role="dialog"
+          aria-label="История статусов"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="reconfig-status-history__title">История статусов</div>
+          {cached === 'loading' ? (
+            <p className="reconfig-status-history__empty">Загрузка…</p>
+          ) : null}
+          {cached === 'error' ? (
+            <p className="reconfig-status-history__empty reconfig-status-history__empty--error">
+              Не удалось загрузить историю
+            </p>
+          ) : null}
+          {cached !== 'loading' && cached !== 'error' && entries.length === 0 ? (
+            <p className="reconfig-status-history__empty">Записей пока нет</p>
+          ) : null}
+          {entries.length > 0 ? (
+            <ol className="reconfig-status-history__list">
+              {entries.map((entry) => (
+                <li key={entry.id} className="reconfig-status-history__item">
+                  <div className="reconfig-status-history__row">
+                    <time dateTime={entry.updatedAt}>
+                      {formatWhen(entry.updatedAt)}
+                    </time>
+                    <span className={pillClassForEntity(entry.status)}>
+                      {entityStatusLabel(entry.status)}
+                    </span>
+                  </div>
+                  <div className="reconfig-status-history__meta">
+                    <span className="reconfig-status-history__scope">
+                      {historyScopeLabel(entry, batchIndexById)}
+                    </span>
+                    {entry.updatedBy ? (
+                      <span>
+                        кем: <strong>{entry.updatedBy}</strong>
+                      </span>
+                    ) : (
+                      <span>автор не указан</span>
+                    )}
+                  </div>
+                  {entry.statusReason?.trim() ? (
+                    <p className="reconfig-status-history__reason">
+                      {entry.statusReason}
+                    </p>
+                  ) : null}
+                </li>
+              ))}
+            </ol>
+          ) : null}
+        </div>
+      ) : null}
+    </span>
+  )
+})
+
 export const ReconfigurationTasksView = memo(function ReconfigurationTasksView() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
@@ -393,6 +582,29 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
     null,
   )
   const [rollbackBusy, setRollbackBusy] = useState(false)
+  const statusHistoryCacheRef = useRef<StatusHistoryCache>(new Map())
+  const [, setStatusHistoryCacheTick] = useState(0)
+
+  const getStatusHistoryCache = useCallback(
+    () => statusHistoryCacheRef.current,
+    [],
+  )
+
+  const setStatusHistoryCacheEntry = useCallback(
+    (
+      taskId: string,
+      value: ReconfigurationTaskStatusHistoryEntry[] | 'loading' | 'error',
+    ) => {
+      statusHistoryCacheRef.current.set(taskId, value)
+      setStatusHistoryCacheTick((n) => n + 1)
+    },
+    [],
+  )
+
+  const invalidateStatusHistoryCache = useCallback((taskId: string) => {
+    statusHistoryCacheRef.current.delete(taskId)
+    setStatusHistoryCacheTick((n) => n + 1)
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -445,6 +657,7 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
       setError(null)
       try {
         const updated = await cancelReconfigurationTask(taskId)
+        invalidateStatusHistoryCache(taskId)
         mergeTaskUpdate(updated)
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
@@ -452,7 +665,7 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
         setActionTaskId(null)
       }
     },
-    [mergeTaskUpdate],
+    [invalidateStatusHistoryCache, mergeTaskUpdate],
   )
 
   const toggleTaskCollapsed = useCallback((taskId: string) => {
@@ -483,6 +696,7 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
       setError(null)
       try {
         const updated = await confirmReconfigurationTask(taskId)
+        invalidateStatusHistoryCache(taskId)
         mergeTaskUpdate(updated)
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
@@ -490,7 +704,7 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
         setActionTaskId(null)
       }
     },
-    [mergeTaskUpdate],
+    [invalidateStatusHistoryCache, mergeTaskUpdate],
   )
 
   const openRollbackTab = useCallback(
@@ -673,6 +887,9 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
           ) : null}
           {visibleTasks.map((task) => {
             const collapsed = collapsedTaskIds.has(task.id)
+            const batchIndexById = new Map(
+              task.batches.map((b, i) => [b.id, i] as const),
+            )
             return (
             <article
               key={task.id}
@@ -710,9 +927,16 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
                   />
                 </button>
                 <div className="reconfig-card__meta">
-                  <span className={pillClassForEntity(task.status)}>
-                    {entityStatusLabel(task.status)}
-                  </span>
+                  <ReconfigStatusHistoryTrigger
+                    taskId={task.id}
+                    batchIndexById={batchIndexById}
+                    getCache={getStatusHistoryCache}
+                    setCacheEntry={setStatusHistoryCacheEntry}
+                  >
+                    <span className={pillClassForEntity(task.status)}>
+                      {entityStatusLabel(task.status)}
+                    </span>
+                  </ReconfigStatusHistoryTrigger>
                   {(canCancelTask(task) ||
                     canConfirmTask(task.status) ||
                     isRollbackEligibleStatus(task.status)) ? (
@@ -807,9 +1031,17 @@ export const ReconfigurationTasksView = memo(function ReconfigurationTasksView()
                       <span className={pillClassForCriticality(batch.criticality)}>
                         {criticalityLabel(batch.criticality)}
                       </span>
-                      <span className={pillClassForEntity(batch.status)}>
-                        {entityStatusLabel(batch.status)}
-                      </span>
+                      <ReconfigStatusHistoryTrigger
+                        taskId={task.id}
+                        batchId={batch.id}
+                        batchIndexById={batchIndexById}
+                        getCache={getStatusHistoryCache}
+                        setCacheEntry={setStatusHistoryCacheEntry}
+                      >
+                        <span className={pillClassForEntity(batch.status)}>
+                          {entityStatusLabel(batch.status)}
+                        </span>
+                      </ReconfigStatusHistoryTrigger>
                       <span className="reconfig-batch__id" title={batch.id}>
                         {batch.id}
                       </span>

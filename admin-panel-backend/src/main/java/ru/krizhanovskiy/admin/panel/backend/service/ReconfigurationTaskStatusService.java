@@ -25,6 +25,11 @@ public class ReconfigurationTaskStatusService {
     private final ReconfigurationTaskStatusRepository reconfigurationTaskStatusRepository;
 
     @Transactional(readOnly = true)
+    public List<ReconfigurationTaskStatus> findHistoryByTaskId(UUID taskId) {
+        return reconfigurationTaskStatusRepository.findByTaskIdOrderByUpdatedAtDesc(taskId);
+    }
+
+    @Transactional(readOnly = true)
     public Map<UUID, TaskExecutionStatusBundle> loadLatestByTaskIds(Collection<UUID> taskIds) {
         if (taskIds == null || taskIds.isEmpty()) {
             return Map.of();

@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationTaskCreateRequest;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationTaskResponse;
+import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationTaskStatusHistoryEntry;
 import ru.krizhanovskiy.admin.panel.backend.service.ReconfigurationTaskService;
 
 import java.net.URI;
@@ -55,6 +56,14 @@ public class ReconfigurationTaskController {
                 .buildAndExpand(created.id())
                 .toUri();
         return ResponseEntity.created(location).body(created);
+    }
+
+    @GetMapping("/{id}/status-history")
+    @Operation(summary = "История смены статусов задачи и батчей",
+            description = "Все записи из reconfiguration_task_status для задачи, от новых к старым. "
+                    + "Записи с batchId = null — изменения на уровне задачи (отображаются для всех батчей).")
+    public List<ReconfigurationTaskStatusHistoryEntry> statusHistory(@PathVariable UUID id) {
+        return reconfigurationTaskService.getStatusHistory(id);
     }
 
     @PostMapping("/{id}/cancel")

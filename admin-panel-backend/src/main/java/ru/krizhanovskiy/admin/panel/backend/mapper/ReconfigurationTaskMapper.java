@@ -23,6 +23,7 @@ import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationSwit
 import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationSwitchVlanParams;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationSwitchVlanPortState;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationTaskResponse;
+import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationTaskStatusHistoryEntry;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationVlanAction;
 import ru.krizhanovskiy.admin.panel.backend.kafka.dto.AddVlanParams;
 import ru.krizhanovskiy.admin.panel.backend.kafka.dto.AddVlanReconfigAction;
@@ -57,6 +58,17 @@ import java.util.UUID;
 
 @Component
 public class ReconfigurationTaskMapper {
+
+    public ReconfigurationTaskStatusHistoryEntry toHistoryEntry(ReconfigurationTaskStatus row) {
+        return new ReconfigurationTaskStatusHistoryEntry(
+                row.getId(),
+                row.getTaskId(),
+                row.getBatchId(),
+                toEntityStatus(row.getStatus()),
+                row.getUpdatedAt(),
+                row.getUpdatedBy(),
+                row.getStatusReason());
+    }
 
     public ReconfigurationTaskResponse toResponse(ReconfigurationTask source) {
         return toResponse(source, null);

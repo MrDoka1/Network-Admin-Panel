@@ -46,6 +46,18 @@ export interface ReconfigurationBatchView {
   actions: ReconfigurationVlanAction[]
 }
 
+/** Запись истории смены статуса из reconfiguration_task_status. */
+export interface ReconfigurationTaskStatusHistoryEntry {
+  id: string
+  taskId: string
+  /** null — изменение на уровне задачи (видно для всех батчей) */
+  batchId: string | null
+  status: ReconfigurationEntityStatus
+  updatedAt: string
+  updatedBy: string | null
+  statusReason: string | null
+}
+
 export interface ReconfigurationTask {
   id: string
   initiatedBy: string | null

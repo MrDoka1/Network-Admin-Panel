@@ -1,6 +1,7 @@
 import type {
   ReconfigurationTask,
   ReconfigurationTaskCreateRequest,
+  ReconfigurationTaskStatusHistoryEntry,
 } from '../types/reconfiguration'
 import { apiFetch } from './http'
 
@@ -67,4 +68,13 @@ export async function confirmReconfigurationTask(
     method: 'POST',
   })
   return parseJson<ReconfigurationTask>(res)
+}
+
+export async function fetchReconfigurationTaskStatusHistory(
+  taskId: string,
+): Promise<ReconfigurationTaskStatusHistoryEntry[]> {
+  const res = await apiFetch(
+    `/api/v1/reconfiguration/tasks/${taskId}/status-history`,
+  )
+  return parseJson<ReconfigurationTaskStatusHistoryEntry[]>(res)
 }

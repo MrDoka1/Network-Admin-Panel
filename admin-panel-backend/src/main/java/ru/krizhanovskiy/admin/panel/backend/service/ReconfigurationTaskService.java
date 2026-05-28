@@ -6,6 +6,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationTaskCreateRequest;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationTaskResponse;
+import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationTaskStatusHistoryEntry;
+import ru.krizhanovskiy.admin.panel.backend.domain.ReconfigurationTaskStatus;
 import ru.krizhanovskiy.admin.panel.backend.domain.User;
 import ru.krizhanovskiy.admin.panel.backend.kafka.KafkaReconfigAdapter;
 import ru.krizhanovskiy.admin.panel.backend.kafka.dto.ReconfigurationBatch;
@@ -85,6 +87,13 @@ public class ReconfigurationTaskService {
                 null,
                 task.batches().stream().map(ReconfigurationBatch::id).toList());
         return taskResponseAfterStatusChange(task);
+    }
+
+    public List<ReconfigurationTaskStatusHistoryEntry> getStatusHistory(UUID taskId) {
+        requireTaskFromKafka(taskId);
+        List<ReconfigurationTaskStatus> rows =
+                reconfigurationTaskStatusService.findHistoryByTaskId(taskId);
+        return rows.stream().map(reconfigurationTaskMapper::toHistoryEntry).toList();
     }
 
     public ReconfigurationTaskResponse confirm(UUID taskId) {
