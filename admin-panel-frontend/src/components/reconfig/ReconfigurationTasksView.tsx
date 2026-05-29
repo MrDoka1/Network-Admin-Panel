@@ -2,12 +2,14 @@ import {
   memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchDevices, fetchVlans } from '../../api/networkClient'
 import {
@@ -389,6 +391,10 @@ type StatusHistoryCache = Map<
   ReconfigurationTaskStatusHistoryEntry[] | 'loading' | 'error'
 >
 
+const STATUS_HISTORY_HIDE_DELAY_MS = 280
+const STATUS_HISTORY_POPOVER_WIDTH = 320
+const STATUS_HISTORY_POPOVER_MAX_HEIGHT = 280
+
 const ReconfigStatusHistoryTrigger = memo(function ReconfigStatusHistoryTrigger({
   taskId,
   batchId,
@@ -409,7 +415,20 @@ const ReconfigStatusHistoryTrigger = memo(function ReconfigStatusHistoryTrigger(
 }) {
   const [open, setOpen] = useState(false)
   const [pinned, setPinned] = useState(false)
-  const wrapRef = useRef<HTMLSpanElement>(null)
+  const [popoverPos, setPopoverPos] = useState<{
+    top: number
+    left: number
+  } | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearHideTimer = useCallback(() => {
+    if (hideTimerRef.current != null) {
+      clearTimeout(hideTimerRef.current)
+      hideTimerRef.current = null
+    }
+  }, [])
 
   const loadHistory = useCallback(() => {
     const cached = getCache().get(taskId)
@@ -421,18 +440,54 @@ const ReconfigStatusHistoryTrigger = memo(function ReconfigStatusHistoryTrigger(
       .catch(() => setCacheEntry(taskId, 'error'))
   }, [getCache, setCacheEntry, taskId])
 
+  const updatePopoverPosition = useCallback(() => {
+    const el = triggerRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const gap = 4
+    const width = Math.min(
+      STATUS_HISTORY_POPOVER_WIDTH,
+      window.innerWidth - 16,
+    )
+    let left = rect.left
+    let top = rect.bottom + gap
+    if (left + width > window.innerWidth - 8) {
+      left = Math.max(8, window.innerWidth - width - 8)
+    }
+    if (top + STATUS_HISTORY_POPOVER_MAX_HEIGHT > window.innerHeight - 8) {
+      const above = rect.top - gap - STATUS_HISTORY_POPOVER_MAX_HEIGHT
+      top =
+        above >= 8
+          ? above
+          : Math.max(8, window.innerHeight - STATUS_HISTORY_POPOVER_MAX_HEIGHT - 8)
+    }
+    setPopoverPos({ top, left })
+  }, [])
+
   const show = useCallback(() => {
+    clearHideTimer()
     setOpen(true)
     loadHistory()
-  }, [loadHistory])
+  }, [clearHideTimer, loadHistory])
 
-  const hide = useCallback(() => {
-    if (!pinned) setOpen(false)
-  }, [pinned])
+  const scheduleHide = useCallback(() => {
+    if (pinned) return
+    clearHideTimer()
+    hideTimerRef.current = setTimeout(() => {
+      setOpen(false)
+      setPopoverPos(null)
+    }, STATUS_HISTORY_HIDE_DELAY_MS)
+  }, [clearHideTimer, pinned])
+
+  const keepOpen = useCallback(() => {
+    clearHideTimer()
+    setOpen(true)
+  }, [clearHideTimer])
 
   const togglePin = useCallback(
     (e: ReactMouseEvent) => {
       e.stopPropagation()
+      clearHideTimer()
       setPinned((prev) => {
         const next = !prev
         if (next) {
@@ -440,24 +495,13 @@ const ReconfigStatusHistoryTrigger = memo(function ReconfigStatusHistoryTrigger(
           loadHistory()
         } else {
           setOpen(false)
+          setPopoverPos(null)
         }
         return next
       })
     },
-    [loadHistory],
+    [clearHideTimer, loadHistory],
   )
-
-  useEffect(() => {
-    if (!pinned) return
-    const onDoc = (e: globalThis.MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) {
-        setPinned(false)
-        setOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
-  }, [pinned])
 
   const cached = getCache().get(taskId)
   const allEntries = cached === 'loading' || cached === 'error' || cached == null
@@ -465,81 +509,133 @@ const ReconfigStatusHistoryTrigger = memo(function ReconfigStatusHistoryTrigger(
     : cached
   const entries = filterStatusHistory(allEntries, batchId)
 
-  return (
-    <span
-      ref={wrapRef}
-      className={
-        pinned
-          ? 'reconfig-status-history reconfig-status-history--pinned'
-          : 'reconfig-status-history'
+  useLayoutEffect(() => {
+    if (!open) return
+    updatePopoverPosition()
+  }, [open, updatePopoverPosition, cached, entries.length])
+
+  useEffect(() => {
+    if (!open) return
+    const onScrollOrResize = () => updatePopoverPosition()
+    window.addEventListener('scroll', onScrollOrResize, true)
+    window.addEventListener('resize', onScrollOrResize)
+    return () => {
+      window.removeEventListener('scroll', onScrollOrResize, true)
+      window.removeEventListener('resize', onScrollOrResize)
+    }
+  }, [open, updatePopoverPosition])
+
+  useEffect(() => {
+    if (!pinned) return
+    const onDoc = (e: globalThis.MouseEvent) => {
+      const target = e.target as Node
+      if (
+        triggerRef.current?.contains(target) ||
+        popoverRef.current?.contains(target)
+      ) {
+        return
       }
-      onMouseEnter={show}
-      onMouseLeave={hide}
-    >
-      <button
-        type="button"
-        className="reconfig-status-history__trigger"
-        title="История смены статусов"
-        aria-expanded={open}
-        onClick={togglePin}
+      setPinned(false)
+      setOpen(false)
+      setPopoverPos(null)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [pinned])
+
+  useEffect(() => () => clearHideTimer(), [clearHideTimer])
+
+  const popover =
+    open && popoverPos != null ? (
+      <div
+        ref={popoverRef}
+        className={
+          pinned
+            ? 'reconfig-status-history__popover reconfig-status-history__popover--pinned'
+            : 'reconfig-status-history__popover'
+        }
+        style={{
+          top: popoverPos.top,
+          left: popoverPos.left,
+          width: Math.min(
+            STATUS_HISTORY_POPOVER_WIDTH,
+            window.innerWidth - 16,
+          ),
+        }}
+        role="dialog"
+        aria-label="История статусов"
+        onMouseEnter={keepOpen}
+        onMouseLeave={scheduleHide}
+        onClick={(e) => e.stopPropagation()}
       >
-        {children}
-      </button>
-      {open ? (
-        <div
-          className="reconfig-status-history__popover"
-          role="dialog"
-          aria-label="История статусов"
-          onClick={(e) => e.stopPropagation()}
+        <div className="reconfig-status-history__title">История статусов</div>
+        {cached === 'loading' ? (
+          <p className="reconfig-status-history__empty">Загрузка…</p>
+        ) : null}
+        {cached === 'error' ? (
+          <p className="reconfig-status-history__empty reconfig-status-history__empty--error">
+            Не удалось загрузить историю
+          </p>
+        ) : null}
+        {cached !== 'loading' && cached !== 'error' && entries.length === 0 ? (
+          <p className="reconfig-status-history__empty">Записей пока нет</p>
+        ) : null}
+        {entries.length > 0 ? (
+          <ol className="reconfig-status-history__list">
+            {entries.map((entry) => (
+              <li key={entry.id} className="reconfig-status-history__item">
+                <div className="reconfig-status-history__row">
+                  <time dateTime={entry.updatedAt}>
+                    {formatWhen(entry.updatedAt)}
+                  </time>
+                  <span className={pillClassForEntity(entry.status)}>
+                    {entityStatusLabel(entry.status)}
+                  </span>
+                </div>
+                <div className="reconfig-status-history__meta">
+                  <span className="reconfig-status-history__scope">
+                    {historyScopeLabel(entry, batchIndexById)}
+                  </span>
+                  {entry.updatedBy ? (
+                    <span>
+                      кем: <strong>{entry.updatedBy}</strong>
+                    </span>
+                  ) : (
+                    <span>автор не указан</span>
+                  )}
+                </div>
+                {entry.statusReason?.trim() ? (
+                  <p className="reconfig-status-history__reason">
+                    {entry.statusReason}
+                  </p>
+                ) : null}
+              </li>
+            ))}
+          </ol>
+        ) : null}
+      </div>
+    ) : null
+
+  return (
+    <>
+      <span
+        className="reconfig-status-history"
+        onMouseEnter={show}
+        onMouseLeave={scheduleHide}
+      >
+        <button
+          ref={triggerRef}
+          type="button"
+          className="reconfig-status-history__trigger"
+          title="История смены статусов"
+          aria-expanded={open}
+          onClick={togglePin}
         >
-          <div className="reconfig-status-history__title">История статусов</div>
-          {cached === 'loading' ? (
-            <p className="reconfig-status-history__empty">Загрузка…</p>
-          ) : null}
-          {cached === 'error' ? (
-            <p className="reconfig-status-history__empty reconfig-status-history__empty--error">
-              Не удалось загрузить историю
-            </p>
-          ) : null}
-          {cached !== 'loading' && cached !== 'error' && entries.length === 0 ? (
-            <p className="reconfig-status-history__empty">Записей пока нет</p>
-          ) : null}
-          {entries.length > 0 ? (
-            <ol className="reconfig-status-history__list">
-              {entries.map((entry) => (
-                <li key={entry.id} className="reconfig-status-history__item">
-                  <div className="reconfig-status-history__row">
-                    <time dateTime={entry.updatedAt}>
-                      {formatWhen(entry.updatedAt)}
-                    </time>
-                    <span className={pillClassForEntity(entry.status)}>
-                      {entityStatusLabel(entry.status)}
-                    </span>
-                  </div>
-                  <div className="reconfig-status-history__meta">
-                    <span className="reconfig-status-history__scope">
-                      {historyScopeLabel(entry, batchIndexById)}
-                    </span>
-                    {entry.updatedBy ? (
-                      <span>
-                        кем: <strong>{entry.updatedBy}</strong>
-                      </span>
-                    ) : (
-                      <span>автор не указан</span>
-                    )}
-                  </div>
-                  {entry.statusReason?.trim() ? (
-                    <p className="reconfig-status-history__reason">
-                      {entry.statusReason}
-                    </p>
-                  ) : null}
-                </li>
-              ))}
-            </ol>
-          ) : null}
-        </div>
-      ) : null}
-    </span>
+          {children}
+        </button>
+      </span>
+      {popover != null ? createPortal(popover, document.body) : null}
+    </>
   )
 })
 

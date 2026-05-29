@@ -7,15 +7,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationTaskCreateRequest;
 import ru.krizhanovskiy.admin.panel.backend.api.dto.reconfig.ReconfigurationTaskResponse;
@@ -61,7 +54,8 @@ public class ReconfigurationTaskController {
     @GetMapping("/{id}/status-history")
     @Operation(summary = "История смены статусов задачи и батчей",
             description = "Все записи из reconfiguration_task_status для задачи, от новых к старым. "
-                    + "Записи с batchId = null — изменения на уровне задачи (отображаются для всех батчей).")
+                    + "Записи с batchId = null — изменения на уровне задачи (отображаются для всех батчей). "
+                    + "Только БД, без чтения Kafka.")
     public List<ReconfigurationTaskStatusHistoryEntry> statusHistory(@PathVariable UUID id) {
         return reconfigurationTaskService.getStatusHistory(id);
     }

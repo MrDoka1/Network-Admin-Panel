@@ -90,7 +90,6 @@ public class ReconfigurationTaskService {
     }
 
     public List<ReconfigurationTaskStatusHistoryEntry> getStatusHistory(UUID taskId) {
-        requireTaskFromKafka(taskId);
         List<ReconfigurationTaskStatus> rows =
                 reconfigurationTaskStatusService.findHistoryByTaskId(taskId);
         return rows.stream().map(reconfigurationTaskMapper::toHistoryEntry).toList();
